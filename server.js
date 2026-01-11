@@ -1,6 +1,6 @@
-// server.js — LRID™ Railway production server (Option A + Anti-404 for Review)
+// server.js — LRID™ Railway production server (Option A + Review expects data.data.drafts)
 // ✅ Intake: POST /api/intake/submit -> /data/data/responses_<case_id>.json, returns out.file
-// ✅ Review: supports MANY possible refresh/load endpoints to avoid 404
+// ✅ Review: supports MANY refresh endpoints and returns payload with data.data.drafts
 // ✅ Storage: uses Railway Volume at /data (fallback /tmp)
 
 const path = require("path");
@@ -39,11 +39,9 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
-// Simple request logger for API calls (helps immediately in Railway logs)
+// Log API calls (for fast debugging in Railway logs)
 app.use((req, res, next) => {
-  if (req.path.startsWith("/api/")) {
-    console.log(`[API] ${req.method} ${req.path}`);
-  }
+  if (req.path.startsWith("/api/")) console.log(`[API] ${req.method} ${req.path}`);
   next();
 });
 
@@ -119,7 +117,6 @@ function publicBaseUrl(req) {
 }
 
 function buildDraftList() {
-  // Option A: drafts == responses_*.json
   const files = listFilesSafe(EFFECTIVE_DATA_DIR).filter((f) => /^responses_.+\.json$/i.test(f));
 
   const drafts = files
@@ -132,7 +129,6 @@ function buildDraftList() {
         id: caseId,
         caseId: caseId,
 
-        // file fields (different UIs expect different keys)
         file: f,
         filename: f,
         path: fullPath,
@@ -150,11 +146,6 @@ function buildDraftList() {
 function readDraftById(idRaw) {
   const id = String(idRaw || "").trim();
 
-  // Accept:
-  // - LRID-2026...
-  // - responses_LRID-2026....json
-  // - responses_LRID-2026....
-  // - direct filename
   let filename = id;
 
   if (!filename.endsWith(".json")) {
@@ -169,7 +160,7 @@ function readDraftById(idRaw) {
 }
 
 // --------------------
-// Intake submit (works with your intake.js expecting out.file)
+// Intake submit (works with intake.js expecting out.file)
 // --------------------
 async function handleIntakeSubmit(req, res) {
   try {
@@ -191,7 +182,7 @@ async function handleIntakeSubmit(req, res) {
       ok: true,
       case_id: caseId,
       filename,
-      file: filePath, // ✅ intake.js prints out.file
+      file: filePath, // ✅ intake.js uses out.file
       saved: filePath,
       review_url: `${publicBaseUrl(req)}/review`,
       message: "Submission stored",
@@ -210,34 +201,45 @@ async function handleIntakeSubmit(req, res) {
 ].forEach((p) => app.post(p, handleIntakeSubmit));
 
 // --------------------
-// REVIEW — Anti-404 endpoints
+// REVIEW — Draft list endpoints (returns data.data.drafts)
 // --------------------
-
-// This handler returns the same payload for many possible "refresh" routes
 function handleDraftList(req, res) {
   try {
     const drafts = buildDraftList();
 
-    // Return MANY aliases - different frontends expect different keys
-    res.json({
+    // ⭐ CRITICAL: Review expects data.data.drafts
+    const payload = {
       ok: true,
+
+      // common top-level aliases
       drafts,
       cases: drafts,
       items: drafts,
       files: drafts,
-
       count: drafts.length,
       total: drafts.length,
 
-      note: "Option A: draft list is responses_*.json",
-    });
+      // nested for review.js: data.data.drafts
+      data: {
+        drafts,
+        count: drafts.length,
+      },
+
+      // even deeper (some frontends do data.data.data.drafts)
+      // harmless redundancy
+      meta: { note: "Option A: drafts are responses_*.json" },
+    };
+
+    // Ensure EXACT shape: payload.data.data.drafts exists
+    payload.data.data = { drafts, count: drafts.length };
+
+    res.json(payload);
   } catch (err) {
     console.error("❌ Draft list error:", err);
     res.status(500).json({ ok: false, error: "Cannot list drafts" });
   }
 }
 
-// Add MANY common endpoints (GET + POST) used by “review panels”
 const DRAFT_LIST_PATHS = [
   "/api/drafts",
   "/api/draft",
@@ -257,7 +259,7 @@ DRAFT_LIST_PATHS.forEach((p) => {
   app.post(p, handleDraftList);
 });
 
-// Load one draft/case (GET) — add aliases too
+// Draft read endpoints
 function handleDraftRead(req, res) {
   const id = req.params.id;
   const out = readDraftById(id);
@@ -280,7 +282,7 @@ const DRAFT_READ_PATHS = [
 
 DRAFT_READ_PATHS.forEach((p) => app.get(p, handleDraftRead));
 
-// Approval save (optional, for your buttons)
+// Approval save (for Review buttons)
 app.post("/api/approval/save", (req, res) => {
   try {
     const payload = safeJsonParse(req.body) || {};
@@ -310,7 +312,7 @@ app.post("/api/approval/save", (req, res) => {
   }
 });
 
-// Finalize placeholder (PDF next)
+// Finalize placeholder (PDF later)
 app.post("/api/finalize", (req, res) => {
   res.json({ ok: true, message: "Finalize ready. PDF generation will be added next." });
 });
@@ -323,17 +325,15 @@ app.get("/intake", (req, res) => res.sendFile(path.join(__dirname, "index.html")
 app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html")));
 
 // --------------------
-// API 404 with hint (VERY IMPORTANT)
+// API 404 with hint
 // --------------------
 app.use("/api", (req, res) => {
-  // If we still missed the endpoint, we want the exact path in logs.
   console.warn(`❌ API 404: ${req.method} ${req.path}`);
   res.status(404).json({
     ok: false,
     error: "API endpoint not found",
     method: req.method,
     path: req.path,
-    hint: "Open Railway logs to see which endpoint Review is calling.",
   });
 });
 
