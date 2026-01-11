@@ -1,4 +1,4 @@
-// server.js — LRID™ Railway production server (FINAL: Review-compatible + normalized draft read)
+// server.js — LRID™ Railway production server (FINAL: Review compatible + /review/api aliases)
 
 const path = require("path");
 const fs = require("fs");
@@ -37,7 +37,7 @@ app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 app.use((req, res, next) => {
-  if (req.path.startsWith("/api/")) console.log(`[API] ${req.method} ${req.path}`);
+  if (req.path.includes("/api/")) console.log(`[API] ${req.method} ${req.path}`);
   next();
 });
 
@@ -130,57 +130,46 @@ function readDraftFile(filename) {
   return { ok: true, filename: safeName, filePath, content: fs.readFileSync(filePath, "utf8") };
 }
 
-// ⭐ Normalize draft shape for any frontend
+// Normalize draft shape for any frontend
 function normalizeDraftObject(draftObj, filename) {
   const base = draftObj || {};
   const data = base.data || base.submission || base.payload || {};
 
-  // intake payload fields (what your intake.js sends)
   const caseId = base.case_id || data.case_id || caseIdFromDraftFilename(filename) || null;
 
-  const normalized = {
-    // canonical
+  return {
     ok: true,
     case_id: caseId,
     status: base.status || "draft",
     created_at: base.created_at || base.createdAt || null,
     source: base.source || "intake",
 
-    // original kept
-    data: data,
+    // original
+    data,
 
-    // ⭐ aliases commonly expected by UIs:
+    // aliases
     submission: data,
     payload: data,
     response: data,
 
-    // ⭐ flattened fields (many UIs want these at top-level)
     tool: data.tool || null,
     version: data.version || null,
     timestamps: data.timestamps || null,
     respondent: data.respondent || null,
     answers: Array.isArray(data.answers) ? data.answers : [],
 
-    // also provide meta wrapper
-    meta: {
-      filename,
-      links: base.links || null,
-    },
-
     links: base.links || null,
+    meta: { filename, links: base.links || null },
   };
-
-  // Extra: in case UI expects draft.data.answers OR draft.answers both work now.
-  return normalized;
 }
 
 // --------------------
-// Build draft list for Review (include draftFile)
+// Draft list builder (include draftFile)
 // --------------------
 function buildDraftList() {
   const files = listFilesSafe(EFFECTIVE_DATA_DIR).filter((f) => /^draft_.+\.json$/i.test(f));
 
-  const drafts = files
+  return files
     .map((f) => {
       const caseId = caseIdFromDraftFilename(f) || f.replace(/\.json$/i, "");
       const fullPath = path.join(EFFECTIVE_DATA_DIR, f);
@@ -188,16 +177,18 @@ function buildDraftList() {
 
       return {
         case_id: caseId,
-        caseId: caseId,
+        caseId,
         id: caseId,
 
+        // MUST:
         draftFile: f,
+
+        // aliases:
         draft_file: f,
         draft: f,
         name: f,
         file: f,
         filename: f,
-
         path: fullPath,
         filePath: fullPath,
 
@@ -206,8 +197,6 @@ function buildDraftList() {
       };
     })
     .sort((a, b) => b.mtime - a.mtime);
-
-  return drafts;
 }
 
 // --------------------
@@ -266,7 +255,7 @@ async function handleIntakeSubmit(req, res) {
 ].forEach((p) => app.post(p, handleIntakeSubmit));
 
 // --------------------
-// Review — Draft list endpoints (data.data.drafts)
+// Handlers
 // --------------------
 function handleDraftList(req, res) {
   try {
@@ -279,10 +268,7 @@ function handleDraftList(req, res) {
       data: {
         drafts,
         count: drafts.length,
-        data: {
-          drafts,
-          count: drafts.length,
-        },
+        data: { drafts, count: drafts.length },
       },
     });
   } catch (err) {
@@ -291,26 +277,6 @@ function handleDraftList(req, res) {
   }
 }
 
-[
-  "/api/drafts",
-  "/api/draft",
-  "/api/drafts/list",
-  "/api/draft/list",
-  "/api/review/drafts",
-  "/api/review/cases",
-  "/api/cases",
-  "/api/cases/list",
-  "/api/list",
-  "/api/files",
-  "/api/files/list",
-].forEach((p) => {
-  app.get(p, handleDraftList);
-  app.post(p, handleDraftList);
-});
-
-// --------------------
-// Draft read endpoints (NOW RETURNS NORMALIZED SHAPE)
-// --------------------
 function sendNormalizedDraft(res, filename) {
   const out = readDraftFile(filename);
   if (!out.ok) return res.status(out.status).json(out);
@@ -322,24 +288,52 @@ function sendNormalizedDraft(res, filename) {
     return res.status(500).json({ ok: false, error: "Draft JSON parse error", filename });
   }
 
-  const normalized = normalizeDraftObject(parsed, filename);
-  return res.json(normalized);
+  return res.json(normalizeDraftObject(parsed, filename));
 }
 
-// If Review calls /api/drafts/<filename or caseId>
-app.get("/api/drafts/:id", (req, res) => {
-  const filename = resolveDraftFilename(req.params.id);
-  return sendNormalizedDraft(res, filename);
+// --------------------
+// API ROUTES (normal)
+// --------------------
+const LIST_PATHS = [
+  "/api/drafts",
+  "/api/draft",
+  "/api/drafts/list",
+  "/api/draft/list",
+  "/api/review/drafts",
+  "/api/review/cases",
+  "/api/cases",
+  "/api/cases/list",
+  "/api/list",
+  "/api/files",
+  "/api/files/list",
+];
+
+LIST_PATHS.forEach((p) => {
+  app.get(p, handleDraftList);
+  app.post(p, handleDraftList);
 });
 
-// If Review calls /api/draft/<filename or caseId>
-app.get("/api/draft/:id", (req, res) => {
-  const filename = resolveDraftFilename(req.params.id);
-  return sendNormalizedDraft(res, filename);
-});
-
-// If Review calls /data/<draftFile> directly
+app.get("/api/drafts/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
+app.get("/api/draft/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
 app.get("/data/:filename", (req, res) => {
+  const filename = String(req.params.filename || "");
+  if (!/^draft_.+\.json$/i.test(filename)) return res.status(400).json({ ok: false, error: "Bad filename" });
+  return sendNormalizedDraft(res, filename);
+});
+
+// --------------------
+// ✅ CRITICAL FIX: /review/api/... aliases
+// (handles fetch("api/drafts") from /review)
+// --------------------
+const REVIEW_LIST_PATHS = LIST_PATHS.map((p) => `/review${p}`);
+REVIEW_LIST_PATHS.forEach((p) => {
+  app.get(p, handleDraftList);
+  app.post(p, handleDraftList);
+});
+
+app.get("/review/api/drafts/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
+app.get("/review/api/draft/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
+app.get("/review/data/:filename", (req, res) => {
   const filename = String(req.params.filename || "");
   if (!/^draft_.+\.json$/i.test(filename)) return res.status(400).json({ ok: false, error: "Bad filename" });
   return sendNormalizedDraft(res, filename);
