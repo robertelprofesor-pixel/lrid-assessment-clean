@@ -1,9 +1,9 @@
-// server.js — Railway production server (Submit works + "Saved:" not undefined)
+// server.js — Railway production server (works with intake.js expecting out.file)
 // - Serves static files from repo root
 // - Exposes /config/*
-// - Adds robust submit endpoints
+// - Handles POST /api/intake/submit (and other common submit paths)
 // - Stores submissions as JSON in DATA_DIR
-// - Returns MANY aliases for saved path so frontend always finds one
+// - Returns: { ok:true, file: "...", case_id: "...", ... } so UI shows Saved correctly
 
 const path = require("path");
 const fs = require("fs");
@@ -51,7 +51,6 @@ app.use("/config", express.static(__dirname));
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    storageRoot: STORAGE_ROOT,
     dataDir: EFFECTIVE_DATA_DIR,
     time: new Date().toISOString(),
   });
@@ -100,7 +99,7 @@ function writeSubmissionFile(envelope) {
     envelope?.raw?.caseId ||
     makeId("LRID");
 
-  const filename = `${caseId}.json`;
+  const filename = `responses_${caseId}.json`; // match intake.js comment
   const filePath = path.join(EFFECTIVE_DATA_DIR, filename);
 
   fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2), "utf8");
@@ -114,7 +113,7 @@ function publicBaseUrl(req) {
 }
 
 // --------------------
-// Submit handler
+// Submit handler (THIS is what your intake.js uses)
 // --------------------
 async function handleSubmit(req, res) {
   try {
@@ -126,44 +125,23 @@ async function handleSubmit(req, res) {
 
     const base = publicBaseUrl(req);
     const reviewUrl = base ? `${base}/review` : "/review";
-    const caseUrl = base
-      ? `${base}/api/case/${encodeURIComponent(caseId)}`
-      : `/api/case/${encodeURIComponent(caseId)}`;
+    const caseUrl = base ? `${base}/api/case/${encodeURIComponent(filename)}` : `/api/case/${encodeURIComponent(filename)}`;
 
-    // ⭐ Return MANY aliases so the UI never shows "undefined"
-    const savedValue = filePath;
-
+    // ⭐ KEY: intake.js expects out.file
     res.json({
       ok: true,
 
-      // IDs
+      // intake.js uses its own caseId variable, but we still return it for consistency
       case_id: caseId,
-      caseId: caseId,
-      id: caseId,
-
-      // "Saved" aliases (most common naming variants)
-      saved: savedValue,
-      Saved: savedValue,
-      saved_to: savedValue,
-      savedTo: savedValue,
-      saved_path: savedValue,
-      savedPath: savedValue,
-      file_path: savedValue,
-      filePath: savedValue,
-      filepath: savedValue,
-      path: savedValue,
-      location: savedValue,
-      stored_at: savedValue,
-      storedAt: savedValue,
-      saved_file: filename,
-      savedFile: filename,
       filename,
+      file: filePath,                // ✅ this fixes "Saved: undefined"
+      file_path: filePath,
+      saved: filePath,
+      savedPath: filePath,
 
-      // Links
+      // helpful links
       review_url: reviewUrl,
-      reviewUrl: reviewUrl,
       case_url: caseUrl,
-      caseUrl: caseUrl,
 
       message: "Submission stored",
     });
@@ -173,12 +151,12 @@ async function handleSubmit(req, res) {
   }
 }
 
-// Multiple endpoints to match existing frontend variants
+// Register common paths
 const SUBMIT_PATHS = [
+  "/api/intake/submit", // your intake.js
   "/submit",
   "/api/submit",
   "/api/intake",
-  "/api/intake/submit",
   "/api/responses",
   "/intake/submit",
 ];
@@ -186,46 +164,36 @@ const SUBMIT_PATHS = [
 SUBMIT_PATHS.forEach((p) => app.post(p, handleSubmit));
 
 // --------------------
-// Review helpers
+// Minimal “case reading” for debugging
+// Here id is filename (responses_CASE.json) or caseId without prefix handling.
 // --------------------
-app.get("/api/cases", (req, res) => {
+app.get("/api/case/:name", (req, res) => {
   try {
-    const files = fs.readdirSync(EFFECTIVE_DATA_DIR).filter((f) => f.endsWith(".json"));
-    files.sort((a, b) => (a < b ? 1 : -1));
-    const cases = files.slice(0, 200).map((f) => ({
-      case_id: f.replace(/\.json$/i, ""),
-      filename: f,
-    }));
-    res.json({ ok: true, cases });
-  } catch (err) {
-    console.error("❌ /api/cases error:", err);
-    res.status(500).json({ ok: false, error: "Cannot list cases" });
-  }
-});
+    const name = req.params.name;
 
-app.get("/api/case/:id", (req, res) => {
-  try {
-    const id = req.params.id;
-    const filePath = path.join(EFFECTIVE_DATA_DIR, `${id}.json`);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ ok: false, error: "Not found" });
-    const content = fs.readFileSync(filePath, "utf8");
-    res.type("json").send(content);
+    // Allow passing full filename or just caseId
+    const filename = name.endsWith(".json") ? name : `responses_${name}.json`;
+    const filePath = path.join(EFFECTIVE_DATA_DIR, filename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ ok: false, error: "Not found", filename });
+    }
+
+    res.type("json").send(fs.readFileSync(filePath, "utf8"));
   } catch (err) {
-    console.error("❌ /api/case/:id error:", err);
+    console.error("❌ /api/case error:", err);
     res.status(500).json({ ok: false, error: "Cannot read case" });
   }
 });
 
-// --------------------
 // Pages
-// --------------------
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/intake", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html")));
 
-// Debug: log unknown POSTs (helps if frontend uses a different endpoint)
+// Unknown POST debug
 app.post("*", (req, res) => {
-  console.warn(`⚠️ Unhandled POST ${req.path} — returning 404`);
+  console.warn(`⚠️ Unhandled POST ${req.path}`);
   res.status(404).json({ ok: false, error: `Not found: POST ${req.path}` });
 });
 
