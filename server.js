@@ -1,17 +1,13 @@
-// server.js — LRID™ Railway production server (FINAL for Review Drafts)
+// server.js — LRID™ Railway production server (Review compatible: data.data.drafts + draftFile)
 // ---------------------------------------------------------------
 // ✅ Intake:
-//   - GET  /config/questions.lrid.v1.json
 //   - POST /api/intake/submit  -> /data/data/responses_<case_id>.json
 //                               + /data/data/draft_<case_id>.json (for Review Panel)
-// ✅ Review:
-//   - GET/POST many aliases -> returns JSON with data.data.drafts
-//   - reads: /data/data/draft_*.json
+// ✅ Review expects:
+//   - refresh response where it can access: data.data.drafts
+//   - each draft item has: draftFile (string), so it can do draftFile.replace(...)
 // ✅ Approvals:
 //   - POST /api/approval/save -> /data/approvals/approval_<case_id>.json
-// ✅ Storage:
-//   - Railway Volume: /data
-//   - data dir: /data/data
 // ---------------------------------------------------------------
 
 const path = require("path");
@@ -50,11 +46,9 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
-// Log API calls to Railway logs (helps debugging immediately)
+// Log API calls
 app.use((req, res, next) => {
-  if (req.path.startsWith("/api/")) {
-    console.log(`[API] ${req.method} ${req.path}`);
-  }
+  if (req.path.startsWith("/api/")) console.log(`[API] ${req.method} ${req.path}`);
   next();
 });
 
@@ -120,25 +114,21 @@ function publicBaseUrl(req) {
   return host ? `${proto}://${host}` : "";
 }
 
-// draft filename helpers
+// filenames
 function draftFilenameFromCaseId(caseId) {
   return `draft_${caseId}.json`;
+}
+function responsesFilenameFromCaseId(caseId) {
+  return `responses_${caseId}.json`;
 }
 function caseIdFromDraftFilename(filename) {
   const m = filename.match(/^draft_(.+)\.json$/i);
   return m ? m[1] : null;
 }
 
-// responses filename helpers
-function responsesFilenameFromCaseId(caseId) {
-  return `responses_${caseId}.json`;
-}
-function caseIdFromResponsesFilename(filename) {
-  const m = filename.match(/^responses_(.+)\.json$/i);
-  return m ? m[1] : null;
-}
-
-// Build draft list for Review (reads draft_*.json)
+// --------------------
+// Build draft list for Review (IMPORTANT: include draftFile)
+// --------------------
 function buildDraftList() {
   const files = listFilesSafe(EFFECTIVE_DATA_DIR).filter((f) => /^draft_.+\.json$/i.test(f));
 
@@ -147,11 +137,20 @@ function buildDraftList() {
       const caseId = caseIdFromDraftFilename(f) || f.replace(/\.json$/i, "");
       const fullPath = path.join(EFFECTIVE_DATA_DIR, f);
       const st = statSafe(fullPath);
-      return {
-        case_id: caseId,
-        id: caseId,
-        caseId: caseId,
 
+      return {
+        // core
+        case_id: caseId,
+        caseId: caseId,
+        id: caseId,
+
+        // ⭐ what Review JS expects:
+        draftFile: f,          // <-- FIX: must be string
+        draft_file: f,         // extra alias
+        draft: f,              // extra alias
+        name: f,               // extra alias
+
+        // other common keys
         file: f,
         filename: f,
         path: fullPath,
@@ -166,11 +165,11 @@ function buildDraftList() {
   return drafts;
 }
 
-// Read draft by id (id = caseId OR draft filename)
+// Read draft by id (caseId OR filename)
 function readDraftById(idRaw) {
   const id = String(idRaw || "").trim();
-
   let filename = id;
+
   if (!filename.endsWith(".json")) {
     if (filename.startsWith("draft_")) filename = `${filename}.json`;
     else filename = draftFilenameFromCaseId(filename);
@@ -196,7 +195,6 @@ async function handleIntakeSubmit(req, res) {
     const responsesPath = path.join(EFFECTIVE_DATA_DIR, responsesFilename);
     const draftPath = path.join(EFFECTIVE_DATA_DIR, draftFilename);
 
-    // envelope kept for audit
     const envelope = {
       receivedAt: new Date().toISOString(),
       ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress,
@@ -204,34 +202,28 @@ async function handleIntakeSubmit(req, res) {
       submission: payload,
     };
 
-    // 1) Save responses_*.json (raw + audit)
+    // raw responses (audit)
     writeJsonFile(responsesPath, envelope);
 
-    // 2) Save draft_*.json for Review Panel (what review UI expects)
-    // The Review panel looks for: data/draft_*.json
-    // We'll store the submission as draft.data so the UI can render it.
+    // draft for review panel
     writeJsonFile(draftPath, {
       case_id: caseId,
       status: "draft",
       created_at: new Date().toISOString(),
       source: "intake",
       data: payload,
-      links: {
-        responses_file: responsesFilename,
-      },
+      links: { responses_file: responsesFilename },
     });
 
-    // Keep compatibility with your intake.js: it prints out.file
+    // intake.js compatibility: uses out.file
     res.json({
       ok: true,
       case_id: caseId,
 
-      // keep old keys for backwards compatibility:
       filename: responsesFilename,
       file: responsesPath,
       saved: responsesPath,
 
-      // new keys:
       responses_file: responsesPath,
       draft_file: draftPath,
 
@@ -244,7 +236,6 @@ async function handleIntakeSubmit(req, res) {
   }
 }
 
-// Accept multiple submit routes (robust)
 [
   "/api/intake/submit",
   "/api/submit",
@@ -260,14 +251,10 @@ function handleDraftList(req, res) {
     const drafts = buildDraftList();
 
     // Review expects: data.data.drafts
-    const payload = {
+    res.json({
       ok: true,
 
-      // common aliases (harmless)
       drafts,
-      cases: drafts,
-      items: drafts,
-      files: drafts,
       count: drafts.length,
       total: drafts.length,
 
@@ -280,16 +267,13 @@ function handleDraftList(req, res) {
           count: drafts.length,
         },
       },
-    };
-
-    res.json(payload);
+    });
   } catch (err) {
     console.error("❌ Draft list error:", err);
     res.status(500).json({ ok: false, error: "Cannot list drafts" });
   }
 }
 
-// Add MANY possible paths that Review might call
 const DRAFT_LIST_PATHS = [
   "/api/drafts",
   "/api/draft",
@@ -309,7 +293,7 @@ DRAFT_LIST_PATHS.forEach((p) => {
   app.post(p, handleDraftList);
 });
 
-// Read a single draft (GET)
+// Read a single draft
 function handleDraftRead(req, res) {
   const id = req.params.id;
   const out = readDraftById(id);
@@ -330,23 +314,6 @@ const DRAFT_READ_PATHS = [
 ];
 
 DRAFT_READ_PATHS.forEach((p) => app.get(p, handleDraftRead));
-
-// Keep /api/case/:id working but read responses_*.json (for your direct tests)
-app.get("/api/case/:id", (req, res) => {
-  try {
-    const id = String(req.params.id || "").trim();
-    const filename = id.endsWith(".json") ? id : responsesFilenameFromCaseId(id);
-    const filePath = path.join(EFFECTIVE_DATA_DIR, filename);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ ok: false, error: "Not found", filename });
-    }
-    res.type("json").send(fs.readFileSync(filePath, "utf8"));
-  } catch (err) {
-    console.error("❌ /api/case/:id error:", err);
-    res.status(500).json({ ok: false, error: "Cannot read case" });
-  }
-});
 
 // --------------------
 // Approval save
@@ -380,14 +347,9 @@ app.post("/api/approval/save", (req, res) => {
   }
 });
 
-// --------------------
-// Finalize placeholder (PDF pipeline later)
-// --------------------
+// Finalize placeholder
 app.post("/api/finalize", (req, res) => {
-  res.json({
-    ok: true,
-    message: "Finalize endpoint is ready. PDF generation will be added next.",
-  });
+  res.json({ ok: true, message: "Finalize ready. PDF generation will be added next." });
 });
 
 // --------------------
@@ -398,16 +360,11 @@ app.get("/intake", (req, res) => res.sendFile(path.join(__dirname, "index.html")
 app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html")));
 
 // --------------------
-// API 404 with hint
+// API 404
 // --------------------
 app.use("/api", (req, res) => {
   console.warn(`❌ API 404: ${req.method} ${req.path}`);
-  res.status(404).json({
-    ok: false,
-    error: "API endpoint not found",
-    method: req.method,
-    path: req.path,
-  });
+  res.status(404).json({ ok: false, error: "API endpoint not found", method: req.method, path: req.path });
 });
 
 // Fallback
@@ -419,6 +376,4 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ LRID™ Server running on port ${PORT}`);
   console.log(`✅ DATA_DIR: ${EFFECTIVE_DATA_DIR}`);
   console.log(`✅ APPROVALS_DIR: ${EFFECTIVE_APPROVALS_DIR}`);
-  console.log(`✅ Draft list aliases: ${DRAFT_LIST_PATHS.join(", ")}`);
-  console.log(`✅ Draft read aliases: ${DRAFT_READ_PATHS.join(", ")}`);
 });
