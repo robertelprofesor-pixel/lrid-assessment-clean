@@ -1,0 +1,23 @@
+# OS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime / generated files
+out/
+data/
+sessions/
+approvals/
+*.pdf
+payload*.json
+draft_*.json
+approval_*.json
+responses_*.json
+sess_*.json
+
+# Environment
+.env
