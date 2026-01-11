@@ -1,13 +1,7 @@
-// server.js — LRID™ Railway production server (Option A: Review reads responses_*.json)
-// ✅ Intake:
-//   - GET  /config/questions.lrid.v1.json
-//   - POST /api/intake/submit  -> /data/data/responses_<case_id>.json
-// ✅ Review (Option A):
-//   - GET  /api/drafts         -> lists responses_*.json as "draft cases"
-//   - GET  /api/draft/:id      -> returns saved response file for selected case
-//   - POST /api/approval/save  -> saves approval JSON (approvals/approval_<case_id>.json)
-//   - POST /api/finalize       -> placeholder (ready for PDF pipeline later)
-// ✅ Storage: Railway Volume mounted at /data (data dir: /data/data)
+// server.js — LRID™ Railway production server (Option A + Anti-404 for Review)
+// ✅ Intake: POST /api/intake/submit -> /data/data/responses_<case_id>.json, returns out.file
+// ✅ Review: supports MANY possible refresh/load endpoints to avoid 404
+// ✅ Storage: uses Railway Volume at /data (fallback /tmp)
 
 const path = require("path");
 const fs = require("fs");
@@ -17,7 +11,7 @@ const express = require("express");
 const app = express();
 
 // --------------------
-// Storage paths
+// Storage
 // --------------------
 const STORAGE_ROOT = process.env.STORAGE_ROOT || "/data";
 const DATA_DIR = process.env.DATA_DIR || path.join(STORAGE_ROOT, "data");
@@ -45,8 +39,16 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
+// Simple request logger for API calls (helps immediately in Railway logs)
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    console.log(`[API] ${req.method} ${req.path}`);
+  }
+  next();
+});
+
 // --------------------
-// Static assets
+// Static
 // --------------------
 app.use(express.static(__dirname, { extensions: ["html"], fallthrough: true }));
 app.use("/config", express.static(__dirname));
@@ -81,21 +83,6 @@ function safeJsonParse(x) {
   }
 }
 
-function normalizeSubmission(body) {
-  const payload = safeJsonParse(body) || {};
-  // Intake sends the full payload directly
-  return {
-    receivedAt: new Date().toISOString(),
-    submission: payload,
-  };
-}
-
-function publicBaseUrl(req) {
-  const proto = (req.headers["x-forwarded-proto"] || "https").toString();
-  const host = (req.headers["x-forwarded-host"] || req.headers.host || "").toString();
-  return host ? `${proto}://${host}` : "";
-}
-
 function listFilesSafe(dir) {
   try {
     return fs.readdirSync(dir);
@@ -112,18 +99,73 @@ function statSafe(p) {
   }
 }
 
-// Extract case id from filename: responses_LRID-YYYYMMDD-XXXX.json
+function responsesFilenameFromCaseId(caseId) {
+  return `responses_${caseId}.json`;
+}
+
 function caseIdFromResponsesFilename(filename) {
   const m = filename.match(/^responses_(.+)\.json$/i);
   return m ? m[1] : null;
 }
 
-function responsesFilenameFromCaseId(caseId) {
-  return `responses_${caseId}.json`;
-}
-
 function writeJsonFile(filePath, obj) {
   fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf8");
+}
+
+function publicBaseUrl(req) {
+  const proto = (req.headers["x-forwarded-proto"] || "https").toString();
+  const host = (req.headers["x-forwarded-host"] || req.headers.host || "").toString();
+  return host ? `${proto}://${host}` : "";
+}
+
+function buildDraftList() {
+  // Option A: drafts == responses_*.json
+  const files = listFilesSafe(EFFECTIVE_DATA_DIR).filter((f) => /^responses_.+\.json$/i.test(f));
+
+  const drafts = files
+    .map((f) => {
+      const caseId = caseIdFromResponsesFilename(f) || f.replace(/\.json$/i, "");
+      const fullPath = path.join(EFFECTIVE_DATA_DIR, f);
+      const st = statSafe(fullPath);
+      return {
+        case_id: caseId,
+        id: caseId,
+        caseId: caseId,
+
+        // file fields (different UIs expect different keys)
+        file: f,
+        filename: f,
+        path: fullPath,
+        filePath: fullPath,
+
+        mtime: st ? st.mtimeMs : 0,
+        size: st ? st.size : 0,
+      };
+    })
+    .sort((a, b) => b.mtime - a.mtime);
+
+  return drafts;
+}
+
+function readDraftById(idRaw) {
+  const id = String(idRaw || "").trim();
+
+  // Accept:
+  // - LRID-2026...
+  // - responses_LRID-2026....json
+  // - responses_LRID-2026....
+  // - direct filename
+  let filename = id;
+
+  if (!filename.endsWith(".json")) {
+    if (filename.startsWith("responses_")) filename = `${filename}.json`;
+    else filename = responsesFilenameFromCaseId(filename);
+  }
+
+  const filePath = path.join(EFFECTIVE_DATA_DIR, filename);
+  if (!fs.existsSync(filePath)) return { ok: false, status: 404, error: "Not found", filename };
+
+  return { ok: true, filePath, filename, content: fs.readFileSync(filePath, "utf8") };
 }
 
 // --------------------
@@ -131,13 +173,17 @@ function writeJsonFile(filePath, obj) {
 // --------------------
 async function handleIntakeSubmit(req, res) {
   try {
-    const envelope = normalizeSubmission(req.body);
-    envelope.ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress;
-    envelope.userAgent = req.headers["user-agent"];
-
-    const caseId = (req.body && req.body.case_id) ? String(req.body.case_id) : makeId("LRID");
+    const payload = safeJsonParse(req.body) || {};
+    const caseId = payload.case_id ? String(payload.case_id) : makeId("LRID");
     const filename = responsesFilenameFromCaseId(caseId);
     const filePath = path.join(EFFECTIVE_DATA_DIR, filename);
+
+    const envelope = {
+      receivedAt: new Date().toISOString(),
+      ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress,
+      userAgent: req.headers["user-agent"],
+      submission: payload,
+    };
 
     writeJsonFile(filePath, envelope);
 
@@ -147,8 +193,8 @@ async function handleIntakeSubmit(req, res) {
       filename,
       file: filePath, // ✅ intake.js prints out.file
       saved: filePath,
-      message: "Submission stored",
       review_url: `${publicBaseUrl(req)}/review`,
+      message: "Submission stored",
     });
   } catch (err) {
     console.error("❌ Intake submit error:", err);
@@ -156,97 +202,85 @@ async function handleIntakeSubmit(req, res) {
   }
 }
 
-const SUBMIT_PATHS = [
-  "/api/intake/submit", // your intake.js
+[
+  "/api/intake/submit",
   "/api/submit",
   "/submit",
   "/intake/submit",
-];
-
-SUBMIT_PATHS.forEach((p) => app.post(p, handleIntakeSubmit));
+].forEach((p) => app.post(p, handleIntakeSubmit));
 
 // --------------------
-// Review — Option A: draft list == responses_*.json
+// REVIEW — Anti-404 endpoints
 // --------------------
 
-// ✅ Review refresh should call this (we make it exist)
-app.get("/api/drafts", (req, res) => {
+// This handler returns the same payload for many possible "refresh" routes
+function handleDraftList(req, res) {
   try {
-    const files = listFilesSafe(EFFECTIVE_DATA_DIR).filter((f) => /^responses_.+\.json$/i.test(f));
+    const drafts = buildDraftList();
 
-    const drafts = files
-      .map((f) => {
-        const caseId = caseIdFromResponsesFilename(f) || f.replace(/\.json$/i, "");
-        const fullPath = path.join(EFFECTIVE_DATA_DIR, f);
-        const st = statSafe(fullPath);
-        return {
-          case_id: caseId,
-          file: f,
-          path: fullPath,
-          mtime: st ? st.mtimeMs : 0,
-          size: st ? st.size : 0,
-        };
-      })
-      .sort((a, b) => b.mtime - a.mtime);
-
+    // Return MANY aliases - different frontends expect different keys
     res.json({
       ok: true,
       drafts,
+      cases: drafts,
+      items: drafts,
+      files: drafts,
+
       count: drafts.length,
-      note: "Option A: drafts are responses_*.json files",
+      total: drafts.length,
+
+      note: "Option A: draft list is responses_*.json",
     });
   } catch (err) {
-    console.error("❌ /api/drafts error:", err);
+    console.error("❌ Draft list error:", err);
     res.status(500).json({ ok: false, error: "Cannot list drafts" });
   }
+}
+
+// Add MANY common endpoints (GET + POST) used by “review panels”
+const DRAFT_LIST_PATHS = [
+  "/api/drafts",
+  "/api/draft",
+  "/api/drafts/list",
+  "/api/draft/list",
+  "/api/review/drafts",
+  "/api/review/cases",
+  "/api/cases",
+  "/api/cases/list",
+  "/api/list",
+  "/api/files",
+  "/api/files/list",
+];
+
+DRAFT_LIST_PATHS.forEach((p) => {
+  app.get(p, handleDraftList);
+  app.post(p, handleDraftList);
 });
 
-// Read selected case (accepts caseId or filename)
-app.get("/api/draft/:id", (req, res) => {
-  try {
-    const id = String(req.params.id || "").trim();
+// Load one draft/case (GET) — add aliases too
+function handleDraftRead(req, res) {
+  const id = req.params.id;
+  const out = readDraftById(id);
 
-    let filename = id;
-    if (!filename.endsWith(".json")) {
-      // If it's a case id, map to responses_<id>.json
-      filename = responsesFilenameFromCaseId(id);
-    }
-
-    // If user passed "responses_*.json" without .json, handle
-    if (!filename.endsWith(".json") && filename.startsWith("responses_")) filename += ".json";
-
-    const filePath = path.join(EFFECTIVE_DATA_DIR, filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ ok: false, error: "Not found", filename });
-    }
-
-    res.type("json").send(fs.readFileSync(filePath, "utf8"));
-  } catch (err) {
-    console.error("❌ /api/draft/:id error:", err);
-    res.status(500).json({ ok: false, error: "Cannot read draft" });
+  if (!out.ok) {
+    return res.status(out.status || 404).json({ ok: false, error: out.error, filename: out.filename });
   }
-});
 
-// Convenience: keep your /api/case working
-app.get("/api/case/:id", (req, res) => {
-  try {
-    const id = String(req.params.id || "").trim();
-    const filename = id.endsWith(".json") ? id : responsesFilenameFromCaseId(id);
-    const filePath = path.join(EFFECTIVE_DATA_DIR, filename);
+  res.type("json").send(out.content);
+}
 
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ ok: false, error: "Not found", filename });
-    }
-    res.type("json").send(fs.readFileSync(filePath, "utf8"));
-  } catch (err) {
-    console.error("❌ /api/case/:id error:", err);
-    res.status(500).json({ ok: false, error: "Cannot read case" });
-  }
-});
+const DRAFT_READ_PATHS = [
+  "/api/draft/:id",
+  "/api/drafts/:id",
+  "/api/review/draft/:id",
+  "/api/review/case/:id",
+  "/api/case/:id",
+  "/api/load/:id",
+];
 
-// --------------------
-// Approval save (for your Review Panel buttons)
-// --------------------
+DRAFT_READ_PATHS.forEach((p) => app.get(p, handleDraftRead));
+
+// Approval save (optional, for your buttons)
 app.post("/api/approval/save", (req, res) => {
   try {
     const payload = safeJsonParse(req.body) || {};
@@ -258,42 +292,27 @@ app.post("/api/approval/save", (req, res) => {
       payload.selectedCase ||
       null;
 
-    if (!caseId) {
-      return res.status(400).json({ ok: false, error: "Missing case_id in approval payload" });
-    }
+    if (!caseId) return res.status(400).json({ ok: false, error: "Missing case_id" });
 
     const filename = `approval_${caseId}.json`;
     const filePath = path.join(EFFECTIVE_APPROVALS_DIR, filename);
 
-    const envelope = {
+    writeJsonFile(filePath, {
       savedAt: new Date().toISOString(),
       case_id: caseId,
       approval: payload,
-    };
-
-    writeJsonFile(filePath, envelope);
-
-    res.json({
-      ok: true,
-      case_id: caseId,
-      file: filePath,
-      message: "Approval saved",
     });
+
+    res.json({ ok: true, case_id: caseId, file: filePath, message: "Approval saved" });
   } catch (err) {
-    console.error("❌ /api/approval/save error:", err);
+    console.error("❌ approval/save error:", err);
     res.status(500).json({ ok: false, error: "Cannot save approval" });
   }
 });
 
-// --------------------
-// Finalize placeholder (PDF pipeline later)
-// --------------------
+// Finalize placeholder (PDF next)
 app.post("/api/finalize", (req, res) => {
-  // We'll wire PDFs here in the next step once review flow works.
-  res.json({
-    ok: true,
-    message: "Finalize endpoint is ready. PDF generation will be added next.",
-  });
+  res.json({ ok: true, message: "Finalize ready. PDF generation will be added next." });
 });
 
 // --------------------
@@ -303,16 +322,23 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/intake", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html")));
 
-// Debug unknown POST
-app.post("*", (req, res) => {
-  console.warn(`⚠️ Unhandled POST ${req.path}`);
-  res.status(404).json({ ok: false, error: `Not found: POST ${req.path}` });
+// --------------------
+// API 404 with hint (VERY IMPORTANT)
+// --------------------
+app.use("/api", (req, res) => {
+  // If we still missed the endpoint, we want the exact path in logs.
+  console.warn(`❌ API 404: ${req.method} ${req.path}`);
+  res.status(404).json({
+    ok: false,
+    error: "API endpoint not found",
+    method: req.method,
+    path: req.path,
+    hint: "Open Railway logs to see which endpoint Review is calling.",
+  });
 });
 
 // Fallback
-app.use((req, res) => {
-  res.status(404).sendFile(path.join(__dirname, "index.html"));
-});
+app.use((req, res) => res.status(404).sendFile(path.join(__dirname, "index.html")));
 
 // Start
 const PORT = process.env.PORT || 3000;
@@ -320,6 +346,6 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ LRID™ Server running on port ${PORT}`);
   console.log(`✅ DATA_DIR: ${EFFECTIVE_DATA_DIR}`);
   console.log(`✅ APPROVALS_DIR: ${EFFECTIVE_APPROVALS_DIR}`);
-  console.log(`✅ Submit endpoints: ${SUBMIT_PATHS.join(", ")}`);
-  console.log(`✅ Review endpoint: GET /api/drafts, GET /api/draft/:id`);
+  console.log(`✅ Draft list aliases: ${DRAFT_LIST_PATHS.join(", ")}`);
+  console.log(`✅ Draft read aliases: ${DRAFT_READ_PATHS.join(", ")}`);
 });
