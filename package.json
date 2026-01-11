@@ -1,13 +1,10 @@
 {
-  "name": "lrid-decision-intelligence",
+  "name": "lrid-assessment-clean",
   "version": "1.0.0",
-  "private": true,
+  "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "serve:intake": "node server.js",
-    "pdf": "node index.js",
-    "approve:auto": "node approve_latest.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",
