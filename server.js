@@ -1,9 +1,9 @@
-// server.js — Railway production server (fixes Submit 404 + returns saved path)
+// server.js — Railway production server (Submit works + "Saved:" not undefined)
 // - Serves static files from repo root
 // - Exposes /config/*
 // - Adds robust submit endpoints
-// - Stores submissions as JSON in DATA_DIR (Railway volume if configured)
-// - Returns fields expected by frontend: saved, saved_to, file_path, case_id, review_url
+// - Stores submissions as JSON in DATA_DIR
+// - Returns MANY aliases for saved path so frontend always finds one
 
 const path = require("path");
 const fs = require("fs");
@@ -23,7 +23,6 @@ function ensureDir(p) {
     fs.mkdirSync(p, { recursive: true });
     return p;
   } catch (e) {
-    // If /data isn't writable (no volume), fallback to /tmp
     const fallback = path.join("/tmp", "data");
     fs.mkdirSync(fallback, { recursive: true });
     console.warn(`⚠️ DATA_DIR not writable, using fallback: ${fallback}`);
@@ -61,7 +60,7 @@ app.get("/api/health", (req, res) => {
 // --------------------
 // Helpers
 // --------------------
-function makeId(prefix = "case") {
+function makeId(prefix = "LRID") {
   const ts = new Date().toISOString().replace(/[-:.TZ]/g, "");
   const rand = crypto.randomBytes(4).toString("hex");
   return `${prefix}_${ts}_${rand}`;
@@ -109,7 +108,6 @@ function writeSubmissionFile(envelope) {
 }
 
 function publicBaseUrl(req) {
-  // Railway terminates TLS and passes proto/host
   const proto = (req.headers["x-forwarded-proto"] || "https").toString();
   const host = (req.headers["x-forwarded-host"] || req.headers.host || "").toString();
   return host ? `${proto}://${host}` : "";
@@ -128,27 +126,44 @@ async function handleSubmit(req, res) {
 
     const base = publicBaseUrl(req);
     const reviewUrl = base ? `${base}/review` : "/review";
-    const caseUrl = base ? `${base}/api/case/${encodeURIComponent(caseId)}` : `/api/case/${encodeURIComponent(caseId)}`;
+    const caseUrl = base
+      ? `${base}/api/case/${encodeURIComponent(caseId)}`
+      : `/api/case/${encodeURIComponent(caseId)}`;
 
-    // IMPORTANT: return multiple aliases so frontend never shows "Saved: undefined"
+    // ⭐ Return MANY aliases so the UI never shows "undefined"
+    const savedValue = filePath;
+
     res.json({
       ok: true,
 
-      // common id fields
+      // IDs
       case_id: caseId,
       caseId: caseId,
       id: caseId,
 
-      // common "saved" fields
-      saved: filePath,
-      saved_to: filePath,
-      file_path: filePath,
-      filePath: filePath,
+      // "Saved" aliases (most common naming variants)
+      saved: savedValue,
+      Saved: savedValue,
+      saved_to: savedValue,
+      savedTo: savedValue,
+      saved_path: savedValue,
+      savedPath: savedValue,
+      file_path: savedValue,
+      filePath: savedValue,
+      filepath: savedValue,
+      path: savedValue,
+      location: savedValue,
+      stored_at: savedValue,
+      storedAt: savedValue,
+      saved_file: filename,
+      savedFile: filename,
       filename,
 
-      // helpful links
+      // Links
       review_url: reviewUrl,
+      reviewUrl: reviewUrl,
       case_url: caseUrl,
+      caseUrl: caseUrl,
 
       message: "Submission stored",
     });
@@ -208,7 +223,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/intake", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html")));
 
-// Debug: log unknown POSTs
+// Debug: log unknown POSTs (helps if frontend uses a different endpoint)
 app.post("*", (req, res) => {
   console.warn(`⚠️ Unhandled POST ${req.path} — returning 404`);
   res.status(404).json({ ok: false, error: `Not found: POST ${req.path}` });
