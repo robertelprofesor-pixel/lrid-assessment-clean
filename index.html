@@ -9,597 +9,585 @@
       --bg:#f6f7fb;
       --card:#ffffff;
       --text:#0f172a;
-      --muted:#475569;
-      --line:#e5e7eb;
-      --brand:#0b5fff;
-      --danger:#b42318;
-      --ok:#067647;
-      --shadow: 0 10px 30px rgba(2,6,23,.08);
-      --radius: 16px;
+      --muted:#64748b;
+      --border:#e6e7ee;
+      --primary:#2563eb;
+      --primary2:#1d4ed8;
+      --danger:#ef4444;
+      --ok:#16a34a;
+      --shadow: 0 10px 28px rgba(2,6,23,.08);
+      --radius:16px;
     }
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-      background:var(--bg);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
       color:var(--text);
+      background:var(--bg);
     }
-    a{color:var(--brand);text-decoration:none}
+    a{color:var(--primary); text-decoration:none}
     a:hover{text-decoration:underline}
-    .wrap{max-width:980px;margin:0 auto;padding:28px 16px 70px}
+    .wrap{max-width:980px; margin:0 auto; padding:28px 18px 80px;}
     .topbar{
-      display:flex;align-items:center;justify-content:space-between;gap:16px;
-      margin-bottom:14px;
+      position:sticky; top:0; z-index:20;
+      backdrop-filter:saturate(140%) blur(8px);
+      background:rgba(246,247,251,.78);
+      border-bottom:1px solid rgba(230,231,238,.7);
     }
-    .brand{
-      display:flex;align-items:flex-start;gap:12px;
-    }
+    .topbar-inner{max-width:980px; margin:0 auto; padding:14px 18px;}
+    .titleRow{display:flex; gap:14px; align-items:flex-start; justify-content:space-between;}
+    .brand{display:flex; gap:12px; align-items:center}
     .logo{
-      width:44px;height:44px;border-radius:12px;
-      background:linear-gradient(135deg, #0b5fff, #7c3aed);
-      box-shadow: var(--shadow);
+      width:42px; height:42px; border-radius:12px;
+      background: radial-gradient(circle at 25% 20%, #60a5fa, #2563eb 55%, #1e40af 100%);
+      box-shadow:0 10px 18px rgba(37,99,235,.25);
+      flex:0 0 auto;
     }
-    .brand h1{margin:0;font-size:18px;line-height:1.1}
-    .brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+    h1{font-size:22px; line-height:1.2; margin:0}
+    .subtitle{margin:4px 0 0; color:var(--muted); font-size:14.5px}
     .pill{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:8px 10px;border-radius:999px;border:1px solid var(--line);
-      background:#fff;color:var(--muted);font-size:12px;
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid var(--border);
+      background:#fff;
+      border-radius:999px;
+      padding:8px 12px;
+      font-size:13px;
+      color:var(--muted);
+      white-space:nowrap;
     }
-    .grid{display:grid;grid-template-columns: 1.2fr .8fr;gap:16px}
-    @media(max-width: 920px){.grid{grid-template-columns: 1fr}}
+    .dot{width:8px; height:8px; border-radius:999px; background:var(--ok)}
     .card{
       background:var(--card);
-      border:1px solid var(--line);
+      border:1px solid var(--border);
       border-radius:var(--radius);
-      box-shadow: var(--shadow);
-      padding:18px;
+      box-shadow:var(--shadow);
     }
-    .card h2{margin:0 0 10px;font-size:16px}
-    .card p{margin:8px 0;color:var(--muted);line-height:1.55}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .field{flex:1;min-width:220px}
-    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-    input, select{
+    .section{margin-top:18px}
+    .cardPad{padding:18px}
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+    @media (max-width: 820px){ .grid2{grid-template-columns:1fr} }
+
+    label{display:block; font-size:13px; color:var(--muted); margin:0 0 6px}
+    .req{color:var(--danger); font-weight:700; margin-left:6px}
+    input[type="text"], input[type="email"]{
       width:100%;
-      padding:12px 12px;
+      height:44px;
       border-radius:12px;
-      border:1px solid var(--line);
+      border:1px solid var(--border);
+      padding:10px 12px;
+      font-size:16px;
       outline:none;
       background:#fff;
-      font-size:14px;
     }
-    input:focus, select:focus{border-color:#bfd3ff; box-shadow:0 0 0 4px rgba(11,95,255,.08)}
-    .divider{height:1px;background:var(--line);margin:14px 0}
-    .progress{
-      height:10px;border-radius:999px;background:#eef2ff;overflow:hidden;border:1px solid #e7eafe;
+    input[type="text"]:focus, input[type="email"]:focus{
+      border-color:rgba(37,99,235,.55);
+      box-shadow:0 0 0 4px rgba(37,99,235,.15);
     }
-    .bar{height:100%;width:0;background:linear-gradient(90deg,#0b5fff,#7c3aed)}
-    .small{font-size:12px;color:var(--muted)}
-    .status{font-size:12px;margin-top:8px}
-    .status.ok{color:var(--ok)}
-    .status.err{color:var(--danger)}
-    .q{
-      padding:14px 14px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      margin-bottom:12px;
-      background:#fff;
-    }
-    .qhead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-    .qid{font-size:11px;color:#64748b}
-    .qtitle{font-size:14px;font-weight:650;line-height:1.35;margin:4px 0 0}
-    .qmeta{font-size:11px;color:#64748b;margin-top:4px}
-    .req{color:var(--danger);font-weight:700;margin-left:6px}
-    .scale{
-      margin-top:12px;
-      display:grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap:10px;
-      align-items:stretch;
-    }
-    @media(max-width: 520px){
-      .scale{grid-template-columns: repeat(2, minmax(0, 1fr))}
-    }
+
+    .progressRow{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px}
+    .progressText{font-size:13px; color:var(--muted)}
+    .bar{height:10px; border-radius:999px; background:#eef2ff; border:1px solid var(--border); overflow:hidden; flex:1}
+    .bar > div{height:100%; width:0%; background:linear-gradient(90deg, #2563eb, #60a5fa); border-radius:999px}
+
+    .qCard{padding:16px; border-top:1px solid var(--border)}
+    .qHead{display:flex; align-items:flex-start; justify-content:space-between; gap:12px}
+    .qId{font-weight:700; font-size:13px; color:#111827}
+    .qText{margin:6px 0 0; font-size:16px; line-height:1.45}
+    .qMeta{margin-top:6px; font-size:13px; color:var(--muted)}
+    .options{display:grid; gap:10px; margin-top:12px}
     .opt{
-      border:1px solid var(--line);
-      border-radius:12px;
-      padding:10px 10px;
-      cursor:pointer;
+      display:flex; gap:10px; align-items:flex-start;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px 12px;
       background:#fff;
-      user-select:none;
-      transition: .12s ease;
-      min-height:52px;
-      display:flex;flex-direction:column;justify-content:center;
     }
-    .opt:hover{border-color:#c7d2fe; box-shadow:0 0 0 4px rgba(124,58,237,.06)}
-    .opt strong{font-size:13px}
-    .opt span{font-size:11px;color:#64748b;margin-top:2px;line-height:1.2}
-    .opt.sel{
-      border-color:#7c3aed;
-      box-shadow:0 0 0 4px rgba(124,58,237,.12);
-      background: #faf7ff;
+    .opt:hover{border-color:rgba(37,99,235,.35)}
+    .opt input{margin-top:2px; transform:scale(1.1)}
+    .opt .optText{font-size:15px; line-height:1.35}
+    .hint{font-size:13px; color:var(--muted); margin-top:10px}
+    .actions{
+      display:flex; gap:12px; justify-content:flex-end; align-items:center;
+      padding:16px; border-top:1px solid var(--border);
+      border-radius:0 0 var(--radius) var(--radius);
+      background:linear-gradient(180deg, #fff, #fbfbff);
     }
-    .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
     .btn{
-      appearance:none;border:none;cursor:pointer;
-      padding:12px 14px;border-radius:12px;
-      font-weight:650;font-size:14px;
-      background:var(--brand);color:#fff;
-      box-shadow: var(--shadow);
+      height:44px;
+      padding:0 16px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      font-weight:700;
+      font-size:15px;
+      cursor:pointer;
     }
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .btn.secondary{background:#fff;color:var(--text);border:1px solid var(--line);box-shadow:none}
-    .warnbox{
-      border:1px solid #ffd7d7;
-      background:#fff5f5;
-      color:#7a1414;
-      padding:12px;border-radius:14px;
-      margin-top:12px;
+    .btn:hover{border-color:rgba(15,23,42,.25)}
+    .btnPrimary{
+      border-color:rgba(37,99,235,.35);
+      background:var(--primary);
+      color:#fff;
+    }
+    .btnPrimary:hover{background:var(--primary2)}
+    .errorBox{
+      margin-top:14px;
+      border:1px solid rgba(239,68,68,.35);
+      background:rgba(239,68,68,.06);
+      color:#7f1d1d;
+      padding:12px 12px;
+      border-radius:14px;
+      font-size:14px;
+      display:none;
+      white-space:pre-wrap;
+    }
+    .footerNote{
+      padding:12px 18px 0;
+      color:var(--muted);
       font-size:13px;
       line-height:1.45;
     }
-    .footnote{margin-top:10px;font-size:12px;color:#64748b;line-height:1.5}
-    .sticky{
-      position:sticky;top:12px;
-    }
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
   </style>
 </head>
+
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <div class="brand">
-        <div class="logo"></div>
-        <div>
-          <h1>LRID™ Assessment</h1>
-          <p>Executive Decision Integrity · Structured Questionnaire</p>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="titleRow">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div>
+            <h1>LRID™ Assessment</h1>
+            <div class="subtitle">Executive Decision Integrity · Structured Questionnaire</div>
+          </div>
+        </div>
+        <div class="pill" title="Configuration status">
+          <span class="dot" id="cfgDot"></span>
+          <span id="cfgText">Config: loading…</span>
         </div>
       </div>
-      <div class="pill">
-        <span>Config:</span>
-        <span id="cfgState" class="mono">loading…</span>
+
+      <div class="progressRow" style="margin-top:14px;">
+        <div class="bar" aria-label="progress">
+          <div id="barFill"></div>
+        </div>
+        <div class="progressText">
+          <span id="pct">0%</span> · <span id="count">0</span>/<span id="total">0</span> required answered
+        </div>
       </div>
     </div>
+  </div>
 
-    <div class="grid">
-      <!-- MAIN -->
-      <div class="card" id="mainCard">
-        <h2>Assessment</h2>
-        <p id="introText">
-          Loading questionnaire…
-        </p>
+  <div class="wrap">
+    <div class="card section">
+      <div class="cardPad">
+        <div style="font-size:14px; color:var(--muted); margin-bottom:12px;">
+          Answer all required items. Your report will be generated and sent to the email address provided below.
+        </div>
 
-        <div class="divider"></div>
-
-        <div class="row">
-          <div class="field">
+        <div class="grid2">
+          <div>
             <label for="name">Full name <span class="req">*</span></label>
-            <input id="name" autocomplete="name" placeholder="e.g., Robert Karaszewski" />
+            <input id="name" type="text" placeholder="e.g., Robert Karaszewski" autocomplete="name" />
           </div>
-          <div class="field">
+          <div>
             <label for="email">Email (report delivery) <span class="req">*</span></label>
-            <input id="email" type="email" autocomplete="email" placeholder="name@company.com" />
-          </div>
-          <div class="field">
-            <label for="org">Organization</label>
-            <input id="org" autocomplete="organization" placeholder="Company / Institution" />
+            <input id="email" type="email" placeholder="name@company.com" autocomplete="email" />
           </div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="progress" aria-label="Progress">
-          <div class="bar" id="bar"></div>
-        </div>
-        <div class="row" style="justify-content:space-between;margin-top:10px">
-          <div class="small" id="progText">0% complete</div>
-          <div class="small" id="countText">0 / 0 answered</div>
+        <div style="margin-top:12px;">
+          <label for="org">Organization</label>
+          <input id="org" type="text" placeholder="Company / Institution" autocomplete="organization" />
         </div>
 
-        <div id="warn" class="warnbox" style="display:none"></div>
-
-        <div class="divider"></div>
-
-        <div id="questionList"></div>
-
-        <div class="actions">
-          <button class="btn secondary" id="btnReset" type="button">Reset answers</button>
-          <button class="btn" id="btnSubmit" type="button">Send responses</button>
-          <div class="status" id="status"></div>
-        </div>
-
-        <div class="footnote">
-          By submitting, you confirm the information is accurate. The report is interpretive and intended to support executive-level discussion.
-        </div>
+        <div class="errorBox" id="topError"></div>
       </div>
 
-      <!-- SIDE -->
-      <div class="card sticky">
-        <h2>Quality Controls</h2>
-        <p>
-          This UI always loads configuration from:
-          <span class="mono">/config/questions.lrid.v1.json</span>
-        </p>
-        <div class="divider"></div>
-        <p class="small">
-          If config cannot be loaded or parsed, the app will stop and show diagnostics instead of silently falling back.
-        </p>
-        <div class="divider"></div>
-        <p class="small">
-          Submission endpoint:
-          <span class="mono">POST /api/intake/submit</span>
-        </p>
-        <p class="small">
-          After submit, the UI redirects to backend:
-          <span class="mono">thank_you_url</span>
-        </p>
-        <div class="divider"></div>
-        <p class="small">
-          Diagnostics:
-          <a href="/api/health" target="_blank" rel="noopener">/api/health</a> ·
-          <a href="/config/questions.lrid.v1.json" target="_blank" rel="noopener">/config/questions.lrid.v1.json</a>
-        </p>
+      <div id="questionsRoot"></div>
+
+      <div class="actions">
+        <button class="btn" id="resetBtn" type="button">Reset answers</button>
+        <button class="btn btnPrimary" id="submitBtn" type="button">Send responses</button>
+      </div>
+
+      <div class="footerNote">
+        By submitting, you confirm the information is accurate. The report is interpretive and intended to support executive-level discussion.
       </div>
     </div>
   </div>
 
 <script>
-(() => {
+  // -----------------------------
+  // Config loading
+  // -----------------------------
   const CONFIG_URL = "/config/questions.lrid.v1.json";
 
-  const elCfg = document.getElementById("cfgState");
-  const elIntro = document.getElementById("introText");
-  const elList = document.getElementById("questionList");
-  const elBar = document.getElementById("bar");
-  const elProg = document.getElementById("progText");
-  const elCount = document.getElementById("countText");
-  const elWarn = document.getElementById("warn");
-  const elStatus = document.getElementById("status");
-  const btnSubmit = document.getElementById("btnSubmit");
-  const btnReset = document.getElementById("btnReset");
+  const elCfgText = document.getElementById("cfgText");
+  const elCfgDot  = document.getElementById("cfgDot");
+  const elTopErr  = document.getElementById("topError");
+
+  const elBarFill = document.getElementById("barFill");
+  const elPct     = document.getElementById("pct");
+  const elCount   = document.getElementById("count");
+  const elTotal   = document.getElementById("total");
 
   const elName = document.getElementById("name");
   const elEmail = document.getElementById("email");
   const elOrg = document.getElementById("org");
 
-  let QUESTIONS = [];
-  let ANSWERS = new Map(); // question_id -> value
-  let META = { title: "LRID™ Assessment", version: "unknown" };
+  const elRoot = document.getElementById("questionsRoot");
+  const elReset = document.getElementById("resetBtn");
+  const elSubmit = document.getElementById("submitBtn");
 
-  function setStatus(msg, type){
-    elStatus.textContent = msg || "";
-    elStatus.className = "status" + (type ? (" " + type) : "");
+  function setCfg(ok, msg){
+    elCfgText.textContent = msg;
+    elCfgDot.style.background = ok ? "var(--ok)" : "var(--danger)";
   }
 
-  function showWarn(html){
-    elWarn.style.display = "block";
-    elWarn.innerHTML = html;
-  }
-  function hideWarn(){
-    elWarn.style.display = "none";
-    elWarn.innerHTML = "";
-  }
-
-  function normalizeConfig(raw){
-    // supports:
-    // 1) [ {id, text, ...}, ... ]
-    // 2) { questions:[...], meta:{...} }
-    // 3) { items:[...] }
-    let questions = [];
-    let meta = {};
-    if (Array.isArray(raw)) {
-      questions = raw;
-    } else if (raw && typeof raw === "object") {
-      meta = raw.meta || raw.info || {};
-      questions = raw.questions || raw.items || raw.data || [];
+  function showTopError(msg){
+    if(!msg){
+      elTopErr.style.display = "none";
+      elTopErr.textContent = "";
+      return;
     }
-    if (!Array.isArray(questions)) questions = [];
-
-    // normalize each question
-    questions = questions
-      .map((q, idx) => {
-        const id = String(q.id || q.question_id || q.qid || ("Q" + (idx+1)));
-        const text = String(q.text || q.question || q.title || "");
-        const section = String(q.section || q.dimension || q.group || "General");
-        const required = (q.required !== undefined) ? Boolean(q.required) : true;
-
-        // Likert default 1..5 if options missing
-        const options = Array.isArray(q.options) && q.options.length
-          ? q.options.map((o, oi) => ({
-              value: (o.value !== undefined ? o.value : (oi+1)),
-              label: String(o.label || o.text || o.name || ("Option " + (oi+1))),
-              hint: (o.hint ? String(o.hint) : "")
-            }))
-          : [
-              { value: 1, label: "Strongly Disagree", hint: "Clear rejection" },
-              { value: 2, label: "Disagree", hint: "Mostly no" },
-              { value: 3, label: "Neutral", hint: "Mixed / uncertain" },
-              { value: 4, label: "Agree", hint: "Mostly yes" },
-              { value: 5, label: "Strongly Agree", hint: "Clear confirmation" },
-            ];
-
-        return {
-          id, text, section, required,
-          options,
-          weight: (q.weight !== undefined ? Number(q.weight) : 1),
-          reverse: Boolean(q.reverse || q.reverse_scored || false)
-        };
-      })
-      .filter(q => q.text && q.text.trim().length > 0);
-
-    return {
-      meta,
-      questions
-    };
+    elTopErr.style.display = "block";
+    elTopErr.textContent = msg;
   }
 
-  function groupBySection(questions){
-    const map = new Map();
-    for (const q of questions){
-      const key = q.section || "General";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(q);
+  function normalizeQuestions(cfg){
+    // UI expects: either array of questions OR {questions:[...]} OR {dimensions:[{questions:[...]}]}
+    if(Array.isArray(cfg)) return cfg;
+    if(cfg && Array.isArray(cfg.questions)) return cfg.questions;
+
+    // Your file is dimension-based: { meta, dimensions:[{id,name,questions:[...]}] }
+    if(cfg && Array.isArray(cfg.dimensions)){
+      const out = [];
+      for(const d of cfg.dimensions){
+        const qs = Array.isArray(d.questions) ? d.questions : [];
+        for(const q of qs){
+          out.push({
+            ...q,
+            dimension_id: d.id,
+            dimension_name: d.name
+          });
+        }
+      }
+      return out;
     }
-    return map;
+    return [];
+  }
+
+  // -----------------------------
+  // Rendering + state
+  // -----------------------------
+  const state = {
+    cfg: null,
+    questions: [],
+    answers: {}, // { [questionId]: value }
+    requiredIds: []
+  };
+
+  function isRequired(q){
+    // In your JSON you mark required implicitly; in PDF all are required.
+    // Treat every question as required unless explicitly "required": false.
+    return q.required !== false;
+  }
+
+  function updateProgress(){
+    const totalReq = state.requiredIds.length;
+    let answered = 0;
+    for(const id of state.requiredIds){
+      const v = state.answers[id];
+      if(v !== undefined && v !== null && String(v).length > 0) answered++;
+    }
+    const pct = totalReq ? Math.round((answered/totalReq)*100) : 0;
+    elTotal.textContent = String(totalReq);
+    elCount.textContent = String(answered);
+    elPct.textContent = pct + "%";
+    elBarFill.style.width = pct + "%";
   }
 
   function render(){
-    elList.innerHTML = "";
-    hideWarn();
+    elRoot.innerHTML = "";
 
-    if (!QUESTIONS.length) {
-      elIntro.textContent = "No questions found in config. Please verify the JSON structure.";
-      showWarn(
-        `<strong>Config loaded but contains zero questions.</strong><br/>
-         The UI expects either an array of questions or { "questions": [...] }.<br/>
-         Open <a href="${CONFIG_URL}" target="_blank" rel="noopener">${CONFIG_URL}</a> and verify the content.`
-      );
-      updateProgress();
-      return;
+    // Group by dimension for nicer flow
+    const byDim = new Map();
+    for(const q of state.questions){
+      const key = q.dimension_name || "General";
+      if(!byDim.has(key)) byDim.set(key, []);
+      byDim.get(key).push(q);
     }
 
-    elIntro.textContent =
-      "Answer all required items. Your report will be generated and sent to the email address provided above.";
+    for(const [dimName, questions] of byDim.entries()){
+      const dimHeader = document.createElement("div");
+      dimHeader.className = "qCard";
+      dimHeader.style.background = "rgba(15,23,42,.02)";
+      dimHeader.innerHTML = `
+        <div class="qHead">
+          <div>
+            <div class="qId">${escapeHtml(dimName)} · ${questions.length} item(s)</div>
+          </div>
+        </div>
+      `;
+      elRoot.appendChild(dimHeader);
 
-    const groups = groupBySection(QUESTIONS);
-
-    for (const [section, qs] of groups.entries()){
-      const sec = document.createElement("div");
-      sec.style.marginBottom = "14px";
-
-      const h = document.createElement("div");
-      h.style.display = "flex";
-      h.style.justifyContent = "space-between";
-      h.style.alignItems = "baseline";
-      h.style.gap = "10px";
-      h.innerHTML = `<div style="font-weight:800;font-size:14px">${escapeHtml(section)}</div>
-                     <div class="small">${qs.length} item(s)</div>`;
-      sec.appendChild(h);
-
-      const spacer = document.createElement("div");
-      spacer.className = "divider";
-      spacer.style.margin = "10px 0 12px";
-      sec.appendChild(spacer);
-
-      qs.forEach((q, idx) => {
-        const wrap = document.createElement("div");
-        wrap.className = "q";
-        wrap.dataset.qid = q.id;
-
-        const selected = ANSWERS.get(q.id);
-
-        const head = document.createElement("div");
-        head.className = "qhead";
-
-        head.innerHTML =
-          `<div>
-             <div class="qid">${escapeHtml(q.id)}${q.required ? '<span class="req">*</span>' : ''}</div>
-             <div class="qtitle">${escapeHtml(q.text)}</div>
-             <div class="qmeta">Scale: 1–5 · ${q.reverse ? 'Reverse-scored' : 'Direct-scored'} · Weight: ${q.weight}</div>
-           </div>`;
-
-        wrap.appendChild(head);
-
-        const scale = document.createElement("div");
-        scale.className = "scale";
-
-        q.options.slice(0,5).forEach(opt => {
-          const btn = document.createElement("div");
-          btn.className = "opt" + (String(selected) === String(opt.value) ? " sel" : "");
-          btn.tabIndex = 0;
-          btn.role = "button";
-          btn.setAttribute("aria-pressed", String(selected) === String(opt.value) ? "true" : "false");
-          btn.innerHTML = `<strong>${escapeHtml(String(opt.value))}. ${escapeHtml(opt.label)}</strong>
-                           <span>${escapeHtml(opt.hint || "")}</span>`;
-
-          btn.addEventListener("click", () => {
-            ANSWERS.set(q.id, opt.value);
-            render(); // simple + robust
-            updateProgress();
-          });
-          btn.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              ANSWERS.set(q.id, opt.value);
-              render();
-              updateProgress();
-            }
-          });
-          scale.appendChild(btn);
-        });
-
-        wrap.appendChild(scale);
-        sec.appendChild(wrap);
-      });
-
-      elList.appendChild(sec);
+      for(const q of questions){
+        elRoot.appendChild(renderQuestion(q));
+      }
     }
 
     updateProgress();
   }
 
-  function escapeHtml(str){
-    return String(str ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
+  function renderQuestion(q){
+    const qId = q.id || q.question_id;
+    const required = isRequired(q);
+
+    const wrap = document.createElement("div");
+    wrap.className = "qCard";
+
+    // Title
+    const head = document.createElement("div");
+    head.className = "qHead";
+    head.innerHTML = `
+      <div style="flex:1">
+        <div class="qId">${escapeHtml(qId || "Q")}${required ? ' <span class="req">*</span>' : ""}</div>
+        <div class="qText">${escapeHtml(q.text || q.label || "")}</div>
+      </div>
+    `;
+    wrap.appendChild(head);
+
+    // OPTIONS / SCALE
+    const opts = document.createElement("div");
+    opts.className = "options";
+
+    // IMPORTANT: we DO NOT render the technical line:
+    // "Scale: 1–5 · Direct-scored · Weight: 1"
+    // -> removed by design (your request)
+
+    if(q.type === "scale"){
+      // Likert 1-5
+      for(let v = (q.scale?.min ?? 1); v <= (q.scale?.max ?? 5); v++){
+        opts.appendChild(optionRadio(qId, String(v), String(v)));
+      }
+    } else {
+      const options = Array.isArray(q.options) ? q.options : [];
+      // Single choice
+      let idx = 0;
+      for(const o of options){
+        idx++;
+        const label = o.label ?? o.text ?? ("Option " + idx);
+        // store score if provided, else store label
+        const value = (o.score !== undefined && o.score !== null) ? String(o.score) : String(label);
+        opts.appendChild(optionRadio(qId, value, label));
+      }
+    }
+
+    wrap.appendChild(opts);
+
+    return wrap;
   }
 
-  function updateProgress(){
-    const required = QUESTIONS.filter(q => q.required);
-    const answeredRequired = required.filter(q => ANSWERS.has(q.id));
-    const totalReq = required.length || 1;
-    const pct = Math.round((answeredRequired.length / totalReq) * 100);
+  function optionRadio(questionId, value, labelText){
+    const row = document.createElement("label");
+    row.className = "opt";
 
-    elBar.style.width = pct + "%";
-    elProg.textContent = pct + "% complete";
-    elCount.textContent = `${answeredRequired.length} / ${required.length} required answered`;
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = questionId;
+    input.value = value;
+    input.checked = (state.answers[questionId] === value);
+
+    input.addEventListener("change", () => {
+      state.answers[questionId] = value;
+      saveDraft();
+      updateProgress();
+    });
+
+    const txt = document.createElement("div");
+    txt.className = "optText";
+    txt.textContent = labelText;
+
+    row.appendChild(input);
+    row.appendChild(txt);
+    return row;
   }
 
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  }
+
+  // -----------------------------
+  // Draft persistence
+  // -----------------------------
+  const DRAFT_KEY = "lrid_assessment_draft_v1";
+
+  function saveDraft(){
+    try{
+      const draft = {
+        respondent: {
+          name: elName.value || "",
+          email: elEmail.value || "",
+          organization: elOrg.value || ""
+        },
+        answers: state.answers
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }catch(e){}
+  }
+
+  function loadDraft(){
+    try{
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if(!raw) return;
+      const d = JSON.parse(raw);
+      if(d?.respondent){
+        elName.value = d.respondent.name || "";
+        elEmail.value = d.respondent.email || "";
+        elOrg.value = d.respondent.organization || "";
+      }
+      if(d?.answers && typeof d.answers === "object"){
+        state.answers = d.answers;
+      }
+    }catch(e){}
+  }
+
+  function clearDraft(){
+    try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+    state.answers = {};
+    elName.value = "";
+    elEmail.value = "";
+    elOrg.value = "";
+    render();
+    showTopError(null);
+  }
+
+  // -----------------------------
+  // Submit
+  // -----------------------------
   function validate(){
-    const problems = [];
-    const name = elName.value.trim();
-    const email = elEmail.value.trim();
+    const name = (elName.value || "").trim();
+    const email = (elEmail.value || "").trim();
 
-    if (!name) problems.push("Full name is required.");
-    if (!email) problems.push("Email is required.");
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) problems.push("Email format looks invalid.");
+    if(!name) return "Please provide Full name.";
+    if(!email) return "Please provide Email (report delivery).";
 
-    const missing = QUESTIONS.filter(q => q.required && !ANSWERS.has(q.id)).map(q => q.id);
-    if (missing.length) problems.push(`Missing required items: ${missing.slice(0,12).join(", ")}${missing.length>12?" …":""}`);
-
-    return problems;
-  }
-
-  function buildPayload(){
-    const respondent = {
-      name: elName.value.trim(),
-      email: elEmail.value.trim(),
-      organization: elOrg.value.trim()
-    };
-
-    const answers = QUESTIONS
-      .filter(q => ANSWERS.has(q.id))
-      .map(q => ({
-        question_id: q.id,
-        value: ANSWERS.get(q.id),
-        section: q.section,
-        weight: q.weight,
-        reverse: q.reverse
-      }));
-
-    return {
-      tool: "LRID™",
-      version: META.version || "unknown",
-      respondent,
-      answers,
-      meta: META
-    };
+    // required answers
+    const missing = [];
+    for(const id of state.requiredIds){
+      const v = state.answers[id];
+      if(v === undefined || v === null || String(v).length === 0){
+        missing.push(id);
+      }
+    }
+    if(missing.length){
+      return "Please answer all required items. Missing: " + missing.slice(0,12).join(", ") + (missing.length>12 ? "…" : "");
+    }
+    return null;
   }
 
   async function submit(){
-    hideWarn();
-    setStatus("", "");
+    showTopError(null);
 
-    const problems = validate();
-    if (problems.length){
-      showWarn("<strong>Please fix the following:</strong><br/>• " + problems.map(escapeHtml).join("<br/>• "));
-      setStatus("Validation failed.", "err");
+    const err = validate();
+    if(err){
+      showTopError(err);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    btnSubmit.disabled = true;
-    btnReset.disabled = true;
-    setStatus("Submitting…", "");
+    elSubmit.disabled = true;
+    elSubmit.textContent = "Sending…";
 
-    const payload = buildPayload();
+    const payload = {
+      respondent: {
+        name: (elName.value || "").trim(),
+        email: (elEmail.value || "").trim(),
+        organization: (elOrg.value || "").trim()
+      },
+      answers: Object.keys(state.answers).map((question_id) => ({
+        question_id,
+        value: state.answers[question_id]
+      }))
+    };
 
     try{
-      const resp = await fetch("/api/intake/submit", {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
+      const r = await fetch("/api/intake/submit", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
         body: JSON.stringify(payload)
       });
-
-      const out = await resp.json().catch(() => ({}));
-      if (!resp.ok || !out || out.ok !== true){
-        const msg = out?.error ? String(out.error) : `Submit failed (${resp.status})`;
-        throw new Error(msg);
+      const data = await r.json();
+      if(!r.ok || !data || data.ok !== true){
+        throw new Error((data && data.error) ? data.error : "Submit failed.");
       }
 
-      // ✅ Redirect to thank-you page provided by backend
-      if (out.thank_you_url){
-        setStatus("Success. Redirecting…", "ok");
-        window.location.assign(out.thank_you_url);
+      // If backend returns thank_you_url, go there (your requirement)
+      if(data.thank_you_url){
+        clearDraft(); // optional: clear local draft after successful submit
+        window.location.href = data.thank_you_url;
         return;
       }
 
-      // Fallback: show inline success
-      setStatus("Success. Report generated.", "ok");
-      showWarn(`<strong>Success.</strong><br/>Report URL: <a target="_blank" rel="noopener" href="${escapeHtml(out.report_url || "#")}">${escapeHtml(out.report_url || "n/a")}</a>`);
+      // fallback
+      clearDraft();
+      window.location.href = "/thank-you?emailed=" + encodeURIComponent(String(data.emailed || false));
     }catch(e){
-      setStatus("Submit failed.", "err");
-      showWarn(`<strong>Submit error:</strong><br/>${escapeHtml(e?.message || String(e))}`);
-      btnSubmit.disabled = false;
-      btnReset.disabled = false;
-      return;
+      showTopError("Submit failed: " + (e?.message || String(e)));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }finally{
+      elSubmit.disabled = false;
+      elSubmit.textContent = "Send responses";
     }
   }
 
-  function resetAll(){
-    ANSWERS.clear();
-    setStatus("", "");
-    hideWarn();
-    render();
-  }
+  // -----------------------------
+  // Boot
+  // -----------------------------
+  (async function boot(){
+    setCfg(true, "Config: loading…");
+    loadDraft();
 
-  btnSubmit.addEventListener("click", submit);
-  btnReset.addEventListener("click", resetAll);
+    elName.addEventListener("input", saveDraft);
+    elEmail.addEventListener("input", saveDraft);
+    elOrg.addEventListener("input", saveDraft);
 
-  async function loadConfig(){
-    elCfg.textContent = "loading…";
-    elCfg.style.color = "";
+    elReset.addEventListener("click", () => clearDraft());
+    elSubmit.addEventListener("click", () => submit());
 
     try{
-      const r = await fetch(CONFIG_URL, { cache: "no-store" });
-      if (!r.ok) throw new Error(`Config fetch failed: HTTP ${r.status}`);
-      const raw = await r.json();
+      const r = await fetch(CONFIG_URL, { cache:"no-store" });
+      if(!r.ok) throw new Error("Cannot load config (" + r.status + ")");
+      const cfg = await r.json();
+      state.cfg = cfg;
 
-      const norm = normalizeConfig(raw);
-      QUESTIONS = norm.questions;
-      META = {
-        title: norm.meta?.title || "LRID™ Assessment",
-        version: norm.meta?.version || norm.meta?.ver || "1.0"
-      };
+      state.questions = normalizeQuestions(cfg);
+      if(!state.questions.length){
+        setCfg(false, "Config: invalid");
+        showTopError("No questions found in config. Please verify the JSON structure (dimensions/questions).");
+        return;
+      }
 
-      elCfg.textContent = "loaded";
-      elCfg.style.color = "var(--ok)";
+      state.requiredIds = state.questions.filter(isRequired).map(q => q.id || q.question_id).filter(Boolean);
 
+      setCfg(true, "Config: loaded");
       render();
-      setStatus("", "");
-    }catch(e){
-      elCfg.textContent = "error";
-      elCfg.style.color = "var(--danger)";
 
-      elIntro.textContent = "Config could not be loaded. The assessment cannot run.";
-      showWarn(
-        `<strong>Config load failed.</strong><br/>
-         URL: <span class="mono">${escapeHtml(CONFIG_URL)}</span><br/>
-         Error: ${escapeHtml(e?.message || String(e))}<br/><br/>
-         Open diagnostics:<br/>
-         • <a href="/api/health" target="_blank" rel="noopener">/api/health</a><br/>
-         • <a href="${CONFIG_URL}" target="_blank" rel="noopener">${CONFIG_URL}</a>`
-      );
-      setStatus("Config error.", "err");
+      // Re-apply saved answers to radios
+      // (render() already sets checked state)
       updateProgress();
-    }
-  }
 
-  loadConfig();
-})();
+    }catch(e){
+      setCfg(false, "Config: failed");
+      showTopError("Config load failed: " + (e?.message || String(e)));
+    }
+  })();
 </script>
 </body>
 </html>
