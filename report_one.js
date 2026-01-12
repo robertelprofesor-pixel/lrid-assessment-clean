@@ -5,14 +5,66 @@ const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
 
+// -------------------
+// Safety helpers
+// -------------------
+function isNonEmptyString(v) {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+function safeFileName(v) {
+  return String(v || "unknown")
+    .trim()
+    .replace(/[^\w.-]+/g, "_")
+    .slice(0, 120);
+}
+
+function resolveCaseId(draft) {
+  return (
+    draft?.case_id ||
+    draft?.caseId ||
+    draft?.meta?.case_id ||
+    draft?.data?.case_id || // czasem case siedzi w data
+    null
+  );
+}
+
+function resolveOutputPath(draft, outputPath) {
+  // Jeśli server.js poda outputPath -> użyj go
+  if (isNonEmptyString(outputPath)) return outputPath;
+
+  // W innym wypadku budujemy deterministyczną ścieżkę
+  const storageRoot = process.env.STORAGE_ROOT || "/data";
+  if (!isNonEmptyString(storageRoot)) {
+    throw new TypeError("STORAGE_ROOT must be a non-empty string.");
+  }
+
+  const caseId = resolveCaseId(draft);
+  const safeCaseId = safeFileName(caseId);
+
+  // /data/reports/<caseId>/LRID-Leadership-Report.pdf
+  return path.join(storageRoot, "reports", safeCaseId, "LRID-Leadership-Report.pdf");
+}
+
+// -------------------
+// Main export
+// -------------------
 function generateExecutiveSearchReport(draft, outputPath) {
+  const finalOutputPath = resolveOutputPath(draft, outputPath);
+
+  if (!isNonEmptyString(finalOutputPath)) {
+    throw new TypeError("generateExecutiveSearchReport: outputPath could not be resolved to a valid string.");
+  }
+
+  // Upewnij się, że katalog istnieje
+  fs.mkdirSync(path.dirname(finalOutputPath), { recursive: true });
+
   const doc = new PDFDocument({
     size: "A4",
     margins: { top: 60, bottom: 60, left: 60, right: 60 },
   });
 
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  doc.pipe(fs.createWriteStream(outputPath));
+  doc.pipe(fs.createWriteStream(finalOutputPath));
 
   // -------------------
   // Helpers
@@ -53,7 +105,13 @@ function generateExecutiveSearchReport(draft, outputPath) {
   doc.moveDown(2);
 
   const respondent = draft?.respondent || {};
-  const caseId = draft?.case_id || draft?.caseId || draft?.meta?.case_id || "-";
+
+  const caseId =
+    draft?.case_id ||
+    draft?.caseId ||
+    draft?.meta?.case_id ||
+    draft?.data?.case_id ||
+    "-";
 
   doc.font("Helvetica").fontSize(11);
   doc.text(`Case ID: ${caseId}`);
@@ -158,6 +216,9 @@ function generateExecutiveSearchReport(draft, outputPath) {
   );
 
   doc.end();
+
+  // Zwróć ścieżkę, żeby server mógł ją odesłać w JSON (opcjonalnie)
+  return { outputPath: finalOutputPath };
 }
 
 module.exports = { generateExecutiveSearchReport };
