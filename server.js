@@ -47,23 +47,50 @@ app.use((req, res, next) => {
 });
 
 // --------------------
-// Static assets
+// Static assets (ROBUST)
 // --------------------
 app.use(express.static(__dirname, { extensions: ["html"], fallthrough: true }));
-app.use("/config", express.static(__dirname)); // load /config/questions.lrid.v1.json
-app.use("/out", express.static(EFFECTIVE_OUT_DIR)); // serve generated PDFs
+
+// ✅ Correct mapping: /config -> ./config
+const CONFIG_DIR = path.join(__dirname, "config");
+app.use("/config", express.static(CONFIG_DIR, { fallthrough: true }));
+
+// ✅ Backward-compatible fallback: if someone kept files in project root
+app.use("/config-root", express.static(__dirname, { fallthrough: true }));
+
+// ✅ Serve generated PDFs
+app.use("/out", express.static(EFFECTIVE_OUT_DIR));
 
 // --------------------
-// Health
+// Health + config diagnostics
 // --------------------
 app.get("/api/health", (req, res) => {
+  const questionsPath = path.join(CONFIG_DIR, "questions.lrid.v1.json");
   res.json({
     status: "ok",
     dataDir: EFFECTIVE_DATA_DIR,
     approvalsDir: EFFECTIVE_APPROVALS_DIR,
     outDir: EFFECTIVE_OUT_DIR,
+    configDir: CONFIG_DIR,
+    questionsExists: fs.existsSync(questionsPath),
+    questionsPath,
     time: new Date().toISOString(),
   });
+});
+
+// ✅ HARD endpoint: guarantees /config/questions.lrid.v1.json works
+app.get("/config/questions.lrid.v1.json", (req, res) => {
+  const p = path.join(CONFIG_DIR, "questions.lrid.v1.json");
+  if (!fs.existsSync(p)) {
+    return res.status(404).json({
+      ok: false,
+      error:
+        "questions.lrid.v1.json not found. Expected at ./config/questions.lrid.v1.json",
+      expected_path: p,
+    });
+  }
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  return res.send(fs.readFileSync(p, "utf8"));
 });
 
 // --------------------
@@ -254,9 +281,6 @@ async function handleIntakeSubmit(req, res) {
     const responsesPath = path.join(EFFECTIVE_DATA_DIR, responsesFilename);
     const draftPath = path.join(EFFECTIVE_DATA_DIR, draftFilename);
 
-    // Accept both formats:
-    // A) payload.respondent + payload.answers
-    // B) payload.data.respondent + payload.data.answers
     const respondent = payload.respondent || payload?.data?.respondent || {};
     const answers = payload.answers || payload?.data?.answers || [];
 
@@ -269,7 +293,6 @@ async function handleIntakeSubmit(req, res) {
 
     writeJsonFile(responsesPath, envelope);
 
-    // draft is a placeholder “analysis envelope”
     writeJsonFile(draftPath, {
       case_id: caseId,
       status: "draft",
@@ -279,7 +302,6 @@ async function handleIntakeSubmit(req, res) {
       links: { responses_file: responsesFilename },
     });
 
-    // ---- Generate report (PDF) and WAIT until it exists
     const generatedAtISO = new Date().toISOString();
 
     const caseFolder = path.join(
@@ -290,7 +312,6 @@ async function handleIntakeSubmit(req, res) {
 
     const pdfPath = path.join(caseFolder, "LRID_Report.pdf");
 
-    // CRITICAL: await -> PDF is guaranteed written before we continue
     await generateExecutiveSearchReport(
       {
         case_id: caseId,
@@ -305,7 +326,6 @@ async function handleIntakeSubmit(req, res) {
 
     const reportUrl = `${publicBaseUrl(req)}/out/${path.basename(caseFolder)}/LRID_Report.pdf`;
 
-    // ---- Email (best effort)
     let emailed = false;
     let emailError = null;
 
@@ -431,7 +451,6 @@ app.get("/data/:filename", (req, res) => {
   return sendNormalizedDraft(res, filename);
 });
 
-// ✅ /review/api aliases (so review.html works)
 const REVIEW_LIST_PATHS = LIST_PATHS.map((p) => `/review${p}`);
 REVIEW_LIST_PATHS.forEach((p) => {
   app.get(p, handleDraftList);
@@ -462,4 +481,6 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ DATA_DIR: ${EFFECTIVE_DATA_DIR}`);
   console.log(`✅ APPROVALS_DIR: ${EFFECTIVE_APPROVALS_DIR}`);
   console.log(`✅ OUT_DIR: ${EFFECTIVE_OUT_DIR}`);
+  console.log(`✅ CONFIG_DIR: ${CONFIG_DIR}`);
+  console.log(`✅ CONFIG URL (questions): /config/questions.lrid.v1.json`);
 });
