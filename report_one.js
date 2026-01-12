@@ -30,8 +30,10 @@ function resolveCaseId(draft) {
 }
 
 function resolveOutputPath(draft, outputPath) {
+  // Jeśli server.js poda outputPath -> użyj go
   if (isNonEmptyString(outputPath)) return outputPath;
 
+  // W innym wypadku budujemy deterministyczną ścieżkę
   const storageRoot = process.env.STORAGE_ROOT || "/data";
   if (!isNonEmptyString(storageRoot)) {
     throw new TypeError("STORAGE_ROOT must be a non-empty string.");
@@ -40,11 +42,12 @@ function resolveOutputPath(draft, outputPath) {
   const caseId = resolveCaseId(draft);
   const safeCaseId = safeFileName(caseId);
 
+  // /data/reports/<caseId>/LRID-Leadership-Report.pdf
   return path.join(storageRoot, "reports", safeCaseId, "LRID-Leadership-Report.pdf");
 }
 
 // -------------------
-// Main export (ASYNC)
+// Main export (ASYNC; waits for file write finish)
 // -------------------
 async function generateExecutiveSearchReport(draft, outputPath) {
   const finalOutputPath = resolveOutputPath(draft, outputPath);
@@ -52,6 +55,7 @@ async function generateExecutiveSearchReport(draft, outputPath) {
     throw new TypeError("generateExecutiveSearchReport: outputPath could not be resolved to a valid string.");
   }
 
+  // Ensure directory exists
   fs.mkdirSync(path.dirname(finalOutputPath), { recursive: true });
 
   const doc = new PDFDocument({
@@ -59,7 +63,6 @@ async function generateExecutiveSearchReport(draft, outputPath) {
     margins: { top: 60, bottom: 60, left: 60, right: 60 },
   });
 
-  // ważne: czekamy na finish strumienia
   const stream = fs.createWriteStream(finalOutputPath);
   doc.pipe(stream);
 
@@ -148,7 +151,7 @@ async function generateExecutiveSearchReport(draft, outputPath) {
   );
 
   // -------------------
-  // ABOUT & DISCLAIMER
+  // ABOUT & DISCLAIMER (Option B page)
   // -------------------
   doc.addPage();
 
@@ -211,10 +214,10 @@ async function generateExecutiveSearchReport(draft, outputPath) {
       "for decisions made on its basis."
   );
 
-  // Zamknij dokument
+  // Finalize PDF
   doc.end();
 
-  // Czekamy aż plik fizycznie powstanie
+  // HARD GUARANTEE: wait until the file is fully written
   await new Promise((resolve, reject) => {
     stream.on("finish", resolve);
     stream.on("error", reject);
