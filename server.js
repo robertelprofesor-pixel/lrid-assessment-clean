@@ -1,4 +1,4 @@
-// server.js — LRID™ production server (Intake + PDF + Email + Review-compatible)
+// server.js — LRID™ production server (Intake + PDF + Email + Review-compatible + Thank You)
 
 const path = require("path");
 const fs = require("fs");
@@ -94,6 +94,15 @@ function publicBaseUrl(req) {
   return host ? `${proto}://${host}` : "";
 }
 
+function escHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function draftFilenameFromCaseId(caseId) {
   return `draft_${caseId}.json`;
 }
@@ -180,6 +189,58 @@ function buildDraftList() {
 }
 
 // --------------------
+// Thank you page
+// --------------------
+app.get("/thank-you", (req, res) => {
+  const emailed = String(req.query.emailed || "").toLowerCase() === "true";
+  const to = req.query.to ? escHtml(req.query.to) : null;
+  const caseId = req.query.case_id ? escHtml(req.query.case_id) : null;
+  const reportUrl = req.query.report_url ? escHtml(req.query.report_url) : null;
+
+  const title = "Thank you — LRID™";
+  const msg = emailed
+    ? "Thank you. The report was sent to the designated email address."
+    : "Thank you. Your submission was received, but email delivery was not confirmed.";
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${title}</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#f6f7fb;color:#111;}
+    .wrap{max-width:820px;margin:0 auto;padding:60px 20px;}
+    .card{background:#fff;border:1px solid #e6e7ee;border-radius:14px;padding:28px;box-shadow:0 6px 18px rgba(0,0,0,0.06);}
+    h1{margin:0 0 10px;font-size:22px;}
+    p{margin:8px 0;line-height:1.55;}
+    .meta{margin-top:18px;padding-top:14px;border-top:1px solid #eee;color:#333;font-size:14px;}
+    a{color:#0b5fff;text-decoration:none;}
+    a:hover{text-decoration:underline;}
+    .btn{display:inline-block;margin-top:16px;padding:10px 14px;border-radius:10px;border:1px solid #d6d8e5;background:#fff;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>${msg}</h1>
+      <p>You may close this page.</p>
+
+      <div class="meta">
+        ${caseId ? `<p><strong>Case ID:</strong> ${caseId}</p>` : ``}
+        ${to ? `<p><strong>Email:</strong> ${to}</p>` : ``}
+        ${reportUrl ? `<p><strong>Report link:</strong> <a href="${reportUrl}">Open report</a></p>` : ``}
+      </div>
+
+      <a class="btn" href="/">Back to start</a>
+    </div>
+  </div>
+</body>
+</html>`);
+});
+
+// --------------------
 // Intake submit (creates responses + draft + PDF + email)
 // --------------------
 async function handleIntakeSubmit(req, res) {
@@ -251,7 +312,6 @@ async function handleIntakeSubmit(req, res) {
     const to = respondent?.email || payload?.respondent?.email || null;
     if (to) {
       try {
-        // safe now: file exists
         const pdfBuffer = fs.readFileSync(pdfPath);
 
         await sendReportEmail({
@@ -273,6 +333,13 @@ async function handleIntakeSubmit(req, res) {
       }
     }
 
+    const thankYouUrl =
+      `${publicBaseUrl(req)}/thank-you` +
+      `?case_id=${encodeURIComponent(caseId)}` +
+      `&emailed=${encodeURIComponent(String(emailed))}` +
+      (to ? `&to=${encodeURIComponent(to)}` : "") +
+      `&report_url=${encodeURIComponent(reportUrl)}`;
+
     return res.json({
       ok: true,
       case_id: caseId,
@@ -283,6 +350,7 @@ async function handleIntakeSubmit(req, res) {
       report_generated: true,
       emailed,
       email_error: emailError,
+      thank_you_url: thankYouUrl,
       review_url: `${publicBaseUrl(req)}/review`,
       message: "Submission stored as responses + draft",
     });
@@ -390,7 +458,7 @@ app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html"
 // --------------------
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ LRID™ Server running on port 8080`);
+  console.log(`✅ LRID™ Server running on port ${PORT}`);
   console.log(`✅ DATA_DIR: ${EFFECTIVE_DATA_DIR}`);
   console.log(`✅ APPROVALS_DIR: ${EFFECTIVE_APPROVALS_DIR}`);
   console.log(`✅ OUT_DIR: ${EFFECTIVE_OUT_DIR}`);
