@@ -50,8 +50,8 @@ app.use((req, res, next) => {
 // Static assets
 // --------------------
 app.use(express.static(__dirname, { extensions: ["html"], fallthrough: true }));
-app.use("/config", express.static(__dirname)); // lets you load /config/questions.lrid.v1.json
-app.use("/out", express.static(EFFECTIVE_OUT_DIR)); // serves generated PDFs
+app.use("/config", express.static(__dirname)); // load /config/questions.lrid.v1.json
+app.use("/out", express.static(EFFECTIVE_OUT_DIR)); // serve generated PDFs
 
 // --------------------
 // Health
@@ -123,7 +123,6 @@ function readDraftFile(filename) {
 function normalizeDraftObject(draftObj, filename) {
   const base = draftObj || {};
   const data = base.data || base.submission || base.payload || {};
-
   const caseId = base.case_id || data.case_id || caseIdFromDraftFilename(filename) || null;
 
   return {
@@ -219,10 +218,9 @@ async function handleIntakeSubmit(req, res) {
       links: { responses_file: responsesFilename },
     });
 
-    // ---- Generate report (Executive Search) -> zapisuje PDF na dysk
+    // ---- Generate report (PDF) and WAIT until it exists
     const generatedAtISO = new Date().toISOString();
 
-    // Folder raportu w OUT
     const caseFolder = path.join(
       EFFECTIVE_OUT_DIR,
       `case_${caseId}_${generatedAtISO.replace(/[:.]/g, "-")}`
@@ -231,8 +229,8 @@ async function handleIntakeSubmit(req, res) {
 
     const pdfPath = path.join(caseFolder, "LRID_Report.pdf");
 
-    // Generator potrzebuje draft-like object + outputPath
-    generateExecutiveSearchReport(
+    // CRITICAL: await -> PDF is guaranteed written before we continue
+    await generateExecutiveSearchReport(
       {
         case_id: caseId,
         respondent,
@@ -244,7 +242,6 @@ async function handleIntakeSubmit(req, res) {
       pdfPath
     );
 
-    // Link do PDF
     const reportUrl = `${publicBaseUrl(req)}/out/${path.basename(caseFolder)}/LRID_Report.pdf`;
 
     // ---- Email (best effort)
@@ -254,7 +251,7 @@ async function handleIntakeSubmit(req, res) {
     const to = respondent?.email || payload?.respondent?.email || null;
     if (to) {
       try {
-        // czytamy PDF do bufora tylko po to, aby dołączyć do maila
+        // safe now: file exists
         const pdfBuffer = fs.readFileSync(pdfPath);
 
         await sendReportEmail({
@@ -393,7 +390,7 @@ app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html"
 // --------------------
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ LRID™ Server running on port ${PORT}`);
+  console.log(`✅ LRID™ Server running on port 8080`);
   console.log(`✅ DATA_DIR: ${EFFECTIVE_DATA_DIR}`);
   console.log(`✅ APPROVALS_DIR: ${EFFECTIVE_APPROVALS_DIR}`);
   console.log(`✅ OUT_DIR: ${EFFECTIVE_OUT_DIR}`);
