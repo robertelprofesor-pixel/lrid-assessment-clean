@@ -92,7 +92,7 @@
     .qCard{padding:16px; border-top:1px solid var(--border)}
     .qHead{display:flex; align-items:flex-start; justify-content:space-between; gap:12px}
     .qId{font-weight:700; font-size:13px; color:#111827}
-    .qText{margin:6px 0 0; font-size:16px; line-height:1.45}
+    .qText{margin:6px 0 0; font-size:17px; line-height:1.55}
     .qMeta{margin-top:6px; font-size:13px; color:var(--muted)}
     .options{display:grid; gap:10px; margin-top:12px}
     .opt{
@@ -146,6 +146,56 @@
       color:var(--muted);
       font-size:13px;
       line-height:1.45;
+    }
+
+    /* ===== Likert (scale 1–5) readability ===== */
+    .scaleWrap{ margin-top:12px; }
+    .scaleAnchors{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      margin:6px 0 10px;
+      font-size:13px;
+      line-height:1.35;
+      color:var(--muted);
+    }
+    .scaleRow{
+      display:grid;
+      grid-template-columns: repeat(5, minmax(56px, 1fr));
+      gap:10px;
+      align-items:stretch;
+    }
+    .scaleItem{ position:relative; }
+    .scaleItem input{
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+    }
+    .scalePill{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px 0;
+      text-align:center;
+      font-weight:800;
+      font-size:18px;
+      background:#fff;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .04s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .scalePill:hover{
+      transform: translateY(-1px);
+      box-shadow:0 6px 16px rgba(17,24,39,.08);
+      border-color:rgba(37,99,235,.35);
+    }
+    .scaleItem input:checked + .scalePill{
+      border-color:rgba(37,99,235,.85);
+      box-shadow:0 0 0 4px rgba(37,99,235,.15);
+    }
+    @media (max-width: 720px){
+      .scaleRow{ grid-template-columns: repeat(5, minmax(44px, 1fr)); gap:8px; }
+      .scalePill{ font-size:16px; padding:10px 0; }
+      .qText{ font-size:16px; line-height:1.5; }
     }
   </style>
 </head>
@@ -260,7 +310,7 @@
     if(Array.isArray(cfg)) return cfg;
     if(cfg && Array.isArray(cfg.questions)) return cfg.questions;
 
-    // Your file is dimension-based: { meta, dimensions:[{id,name,questions:[...]}] }
+    // dimension-based: { meta, dimensions:[{id,name,questions:[...]}] }
     if(cfg && Array.isArray(cfg.dimensions)){
       const out = [];
       for(const d of cfg.dimensions){
@@ -289,7 +339,6 @@
   };
 
   function isRequired(q){
-    // In your JSON you mark required implicitly; in PDF all are required.
     // Treat every question as required unless explicitly "required": false.
     return q.required !== false;
   }
@@ -340,6 +389,67 @@
     updateProgress();
   }
 
+  function extractAnchorsFromText(text){
+    // (1 = calm mobilization; 5 = irritation / short fuse)
+    const m = String(text || "").match(/\(\s*1\s*=\s*([^;]+)\s*;\s*5\s*=\s*([^)]+)\)/i);
+    if(!m) return null;
+    return { left: m[1].trim(), right: m[2].trim() };
+  }
+
+  function stripAnchorsFromText(text){
+    return String(text || "").replace(/\s*\(\s*1\s*=\s*[^;]+\s*;\s*5\s*=\s*[^)]+\)\s*/i, "").trim();
+  }
+
+  function renderScaleLikert(q){
+    const qId = q.id || q.question_id;
+    const min = (q.scale?.min ?? 1);
+    const max = (q.scale?.max ?? 5);
+
+    const wrap = document.createElement("div");
+    wrap.className = "scaleWrap";
+
+    const anchors = q.anchors || extractAnchorsFromText(q.text);
+
+    if(anchors){
+      const a = document.createElement("div");
+      a.className = "scaleAnchors";
+      a.innerHTML = `<span><strong>1</strong> — ${escapeHtml(anchors.left)}</span>
+                     <span><strong>5</strong> — ${escapeHtml(anchors.right)}</span>`;
+      wrap.appendChild(a);
+    }
+
+    const row = document.createElement("div");
+    row.className = "scaleRow";
+
+    for(let v=min; v<=max; v++){
+      const item = document.createElement("label");
+      item.className = "scaleItem";
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = qId;
+      input.value = String(v);
+      input.checked = (state.answers[qId] === String(v));
+
+      input.addEventListener("change", () => {
+        state.answers[qId] = String(v);
+        saveDraft();
+        updateProgress();
+      });
+
+      const pill = document.createElement("div");
+      pill.className = "scalePill";
+      pill.textContent = String(v);
+
+      item.appendChild(input);
+      item.appendChild(pill);
+      row.appendChild(item);
+    }
+
+    wrap.appendChild(row);
+    return wrap;
+  }
+
   function renderQuestion(q){
     const qId = q.id || q.question_id;
     const required = isRequired(q);
@@ -350,42 +460,38 @@
     // Title
     const head = document.createElement("div");
     head.className = "qHead";
+
+    const questionText = (q.type === "scale")
+      ? stripAnchorsFromText(q.text || q.label || "")
+      : (q.text || q.label || "");
+
     head.innerHTML = `
       <div style="flex:1">
         <div class="qId">${escapeHtml(qId || "Q")}${required ? ' <span class="req">*</span>' : ""}</div>
-        <div class="qText">${escapeHtml(q.text || q.label || "")}</div>
+        <div class="qText">${escapeHtml(questionText)}</div>
       </div>
     `;
     wrap.appendChild(head);
 
-    // OPTIONS / SCALE
+    // SCALE / OPTIONS
+    if(q.type === "scale"){
+      wrap.appendChild(renderScaleLikert(q));
+      return wrap;
+    }
+
     const opts = document.createElement("div");
     opts.className = "options";
 
-    // IMPORTANT: we DO NOT render the technical line:
-    // "Scale: 1–5 · Direct-scored · Weight: 1"
-    // -> removed by design (your request)
-
-    if(q.type === "scale"){
-      // Likert 1-5
-      for(let v = (q.scale?.min ?? 1); v <= (q.scale?.max ?? 5); v++){
-        opts.appendChild(optionRadio(qId, String(v), String(v)));
-      }
-    } else {
-      const options = Array.isArray(q.options) ? q.options : [];
-      // Single choice
-      let idx = 0;
-      for(const o of options){
-        idx++;
-        const label = o.label ?? o.text ?? ("Option " + idx);
-        // store score if provided, else store label
-        const value = (o.score !== undefined && o.score !== null) ? String(o.score) : String(label);
-        opts.appendChild(optionRadio(qId, value, label));
-      }
+    const options = Array.isArray(q.options) ? q.options : [];
+    let idx = 0;
+    for(const o of options){
+      idx++;
+      const label = o.label ?? o.text ?? ("Option " + idx);
+      const value = (o.score !== undefined && o.score !== null) ? String(o.score) : String(label);
+      opts.appendChild(optionRadio(qId, value, label));
     }
 
     wrap.appendChild(opts);
-
     return wrap;
   }
 
@@ -478,7 +584,6 @@
     if(!name) return "Please provide Full name.";
     if(!email) return "Please provide Email (report delivery).";
 
-    // required answers
     const missing = [];
     for(const id of state.requiredIds){
       const v = state.answers[id];
@@ -528,14 +633,12 @@
         throw new Error((data && data.error) ? data.error : "Submit failed.");
       }
 
-      // If backend returns thank_you_url, go there (your requirement)
       if(data.thank_you_url){
-        clearDraft(); // optional: clear local draft after successful submit
+        clearDraft();
         window.location.href = data.thank_you_url;
         return;
       }
 
-      // fallback
       clearDraft();
       window.location.href = "/thank-you?emailed=" + encodeURIComponent(String(data.emailed || false));
     }catch(e){
@@ -574,15 +677,14 @@
         return;
       }
 
-      state.requiredIds = state.questions.filter(isRequired).map(q => q.id || q.question_id).filter(Boolean);
+      state.requiredIds = state.questions
+        .filter(isRequired)
+        .map(q => q.id || q.question_id)
+        .filter(Boolean);
 
       setCfg(true, "Config: loaded");
       render();
-
-      // Re-apply saved answers to radios
-      // (render() already sets checked state)
       updateProgress();
-
     }catch(e){
       setCfg(false, "Config: failed");
       showTopError("Config load failed: " + (e?.message || String(e)));
