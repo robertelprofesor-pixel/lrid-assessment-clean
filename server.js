@@ -1,9 +1,12 @@
-// server.js — LRID™ Railway production server (FINAL: Review compatible + /review/api aliases)
+// server.js — LRID™ Production (Intake → Draft + PDF → Email + Review Panel)
+// One-file version: storage + PDFKit + Nodemailer + /review/api aliases
 
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const express = require("express");
+const PDFDocument = require("pdfkit");
+const nodemailer = require("nodemailer");
 
 const app = express();
 
@@ -13,6 +16,7 @@ const app = express();
 const STORAGE_ROOT = process.env.STORAGE_ROOT || "/data";
 const DATA_DIR = process.env.DATA_DIR || path.join(STORAGE_ROOT, "data"); // /data/data
 const APPROVALS_DIR = process.env.APPROVALS_DIR || path.join(STORAGE_ROOT, "approvals"); // /data/approvals
+const OUT_DIR = process.env.OUT_DIR || path.join(STORAGE_ROOT, "out"); // /data/out
 
 function ensureDir(p) {
   try {
@@ -28,6 +32,7 @@ function ensureDir(p) {
 
 const EFFECTIVE_DATA_DIR = ensureDir(DATA_DIR);
 const EFFECTIVE_APPROVALS_DIR = ensureDir(APPROVALS_DIR);
+const EFFECTIVE_OUT_DIR = ensureDir(OUT_DIR);
 
 // --------------------
 // Middleware
@@ -47,6 +52,9 @@ app.use((req, res, next) => {
 app.use(express.static(__dirname, { extensions: ["html"], fallthrough: true }));
 app.use("/config", express.static(__dirname));
 
+// expose generated PDFs
+app.use("/out", express.static(EFFECTIVE_OUT_DIR, { fallthrough: false }));
+
 // --------------------
 // Health
 // --------------------
@@ -55,6 +63,7 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     dataDir: EFFECTIVE_DATA_DIR,
     approvalsDir: EFFECTIVE_APPROVALS_DIR,
+    outDir: EFFECTIVE_OUT_DIR,
     time: new Date().toISOString(),
   });
 });
@@ -134,7 +143,6 @@ function readDraftFile(filename) {
 function normalizeDraftObject(draftObj, filename) {
   const base = draftObj || {};
   const data = base.data || base.submission || base.payload || {};
-
   const caseId = base.case_id || data.case_id || caseIdFromDraftFilename(filename) || null;
 
   return {
@@ -144,10 +152,8 @@ function normalizeDraftObject(draftObj, filename) {
     created_at: base.created_at || base.createdAt || null,
     source: base.source || "intake",
 
-    // original
     data,
 
-    // aliases
     submission: data,
     payload: data,
     response: data,
@@ -180,10 +186,7 @@ function buildDraftList() {
         caseId,
         id: caseId,
 
-        // MUST:
         draftFile: f,
-
-        // aliases:
         draft_file: f,
         draft: f,
         name: f,
@@ -200,7 +203,152 @@ function buildDraftList() {
 }
 
 // --------------------
-// Intake submit
+// PDF generation
+// --------------------
+function safeText(x) {
+  if (x === null || x === undefined) return "";
+  return String(x);
+}
+
+async function generatePdfReport({ caseId, submission, outDir }) {
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const caseFolder = `case_${caseId}_${ts}`;
+  const folderPath = path.join(outDir, caseFolder);
+  ensureDir(folderPath);
+
+  const pdfPath = path.join(folderPath, "LRID_Report.pdf");
+
+  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  const stream = fs.createWriteStream(pdfPath);
+  doc.pipe(stream);
+
+  // Title
+  doc.fontSize(20).text("LRID™ Leadership Competency Report", { align: "left" });
+  doc.moveDown(0.5);
+  doc.fontSize(10).fillColor("#555").text(`Case ID: ${caseId}`);
+  doc.text(`Generated: ${new Date().toLocaleString()}`);
+  doc.moveDown(1);
+
+  // Respondent
+  const respondent = submission?.respondent || {};
+  doc.fillColor("#000").fontSize(14).text("Respondent", { underline: true });
+  doc.moveDown(0.4);
+  doc.fontSize(11).text(`Name: ${safeText(respondent.name)}`);
+  doc.text(`Email: ${safeText(respondent.email)}`);
+  doc.text(`Organization: ${safeText(respondent.organization)}`);
+  doc.moveDown(1);
+
+  // Answers
+  doc.fontSize(14).text("Responses", { underline: true });
+  doc.moveDown(0.4);
+
+  const answers = Array.isArray(submission?.answers) ? submission.answers : [];
+  if (!answers.length) {
+    doc.fontSize(11).fillColor("#333").text("No answers provided.");
+  } else {
+    doc.fontSize(11).fillColor("#000");
+    answers.slice(0, 200).forEach((a, idx) => {
+      doc.text(`${idx + 1}. ${safeText(a.question_id)}: ${safeText(a.value)}`);
+    });
+    if (answers.length > 200) {
+      doc.moveDown(0.5);
+      doc.fillColor("#777").text(`(Only first 200 answers displayed. Total: ${answers.length})`);
+      doc.fillColor("#000");
+    }
+  }
+
+  doc.moveDown(1);
+
+  // Notes / Next steps placeholder
+  doc.fontSize(14).text("Next Steps (placeholder)", { underline: true });
+  doc.moveDown(0.4);
+  doc.fontSize(11).fillColor("#333").text(
+    "This MVP report confirms the end-to-end flow (intake → scoring placeholder → PDF generation → email delivery). " +
+      "Next iteration: scoring engine, competency profiles, executive summary, recommendations, and branded layout."
+  );
+
+  doc.end();
+
+  await new Promise((resolve, reject) => {
+    stream.on("finish", resolve);
+    stream.on("error", reject);
+  });
+
+  return { folderPath, pdfPath, caseFolder };
+}
+
+// --------------------
+// Mail sending
+// --------------------
+function buildTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  console.log("[MAIL] ENV CHECK:", {
+    SMTP_HOST: host,
+    SMTP_PORT: port,
+    SMTP_SECURE: secure,
+    SMTP_USER: user,
+    SMTP_PASS: pass ? "SET" : "MISSING",
+    MAIL_FROM: process.env.MAIL_FROM,
+  });
+
+  if (!host || !user || !pass) return null;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    logger: true,
+    debug: true,
+  });
+}
+
+async function sendReportEmail({ to, pdfPath, caseId }) {
+  const transporter = buildTransporter();
+  if (!transporter) {
+    console.error("[MAIL] SMTP CONFIG MISSING — skipping email");
+    return { ok: false, reason: "SMTP_CONFIG_MISSING" };
+  }
+
+  const from = process.env.MAIL_FROM || process.env.SMTP_USER;
+  const subject = `Your LRID™ Report (Case ${caseId})`;
+  const text =
+    "Thank you for completing the LRID assessment.\n\n" +
+    "Your personalized report is attached as a PDF.\n\n" +
+    "LRID Team";
+
+  console.log("[MAIL] Sending to:", to);
+
+  const info = await transporter.sendMail({
+    from,
+    to,
+    subject,
+    text,
+    attachments: [
+      {
+        filename: "LRID_Report.pdf",
+        path: pdfPath,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+
+  console.log("[MAIL] SENT");
+  console.log("[MAIL] messageId:", info.messageId);
+  console.log("[MAIL] accepted:", info.accepted);
+  console.log("[MAIL] rejected:", info.rejected);
+  console.log("[MAIL] response:", info.response);
+
+  return { ok: true, info };
+}
+
+// --------------------
+// Intake submit (now: store + PDF + email)
 // --------------------
 async function handleIntakeSubmit(req, res) {
   try {
@@ -231,6 +379,36 @@ async function handleIntakeSubmit(req, res) {
       links: { responses_file: responsesFilename },
     });
 
+    // Generate PDF
+    let report = null;
+    let reportUrl = null;
+    let reportGenerated = false;
+
+    try {
+      report = await generatePdfReport({ caseId, submission: payload, outDir: EFFECTIVE_OUT_DIR });
+      reportUrl = `${publicBaseUrl(req)}/out/${encodeURIComponent(report.caseFolder)}/LRID_Report.pdf`;
+      reportGenerated = true;
+    } catch (e) {
+      console.error("❌ PDF generation failed:", e?.message || e);
+    }
+
+    // Email
+    const to = payload?.respondent?.email ? String(payload.respondent.email) : null;
+    let emailed = false;
+    let mailResult = null;
+
+    if (to && reportGenerated && report?.pdfPath) {
+      try {
+        mailResult = await sendReportEmail({ to, pdfPath: report.pdfPath, caseId });
+        emailed = !!mailResult?.ok;
+      } catch (e) {
+        console.error("❌ Email send failed:", e?.message || e);
+      }
+    } else {
+      if (!to) console.warn("[MAIL] No recipient email in payload.respondent.email");
+      if (!reportGenerated) console.warn("[MAIL] Report not generated — skipping email");
+    }
+
     res.json({
       ok: true,
       case_id: caseId,
@@ -238,7 +416,13 @@ async function handleIntakeSubmit(req, res) {
       saved: responsesPath,
       responses_file: responsesPath,
       draft_file: draftPath,
+
       review_url: `${publicBaseUrl(req)}/review`,
+
+      report_generated: reportGenerated,
+      report_url: reportUrl,
+
+      emailed,
       message: "Submission stored as responses + draft",
     });
   } catch (err) {
@@ -255,7 +439,7 @@ async function handleIntakeSubmit(req, res) {
 ].forEach((p) => app.post(p, handleIntakeSubmit));
 
 // --------------------
-// Handlers
+// Handlers (review panel APIs)
 // --------------------
 function handleDraftList(req, res) {
   try {
@@ -323,7 +507,6 @@ app.get("/data/:filename", (req, res) => {
 
 // --------------------
 // ✅ CRITICAL FIX: /review/api/... aliases
-// (handles fetch("api/drafts") from /review)
 // --------------------
 const REVIEW_LIST_PATHS = LIST_PATHS.map((p) => `/review${p}`);
 REVIEW_LIST_PATHS.forEach((p) => {
@@ -371,11 +554,6 @@ app.post("/api/approval/save", (req, res) => {
   }
 });
 
-// Finalize placeholder
-app.post("/api/finalize", (req, res) => {
-  res.json({ ok: true, message: "Finalize ready. PDF generation will be added next." });
-});
-
 // Pages
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/intake", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
@@ -396,4 +574,5 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ LRID™ Server running on port ${PORT}`);
   console.log(`✅ DATA_DIR: ${EFFECTIVE_DATA_DIR}`);
   console.log(`✅ APPROVALS_DIR: ${EFFECTIVE_APPROVALS_DIR}`);
+  console.log(`✅ OUT_DIR: ${EFFECTIVE_OUT_DIR}`);
 });
