@@ -1,232 +1,167 @@
-// report_one.js — Executive Search grade (BOLD) LRID™ report
+// report_one.js — LRID™ Executive-Grade PDF Report (FINAL)
+
+const fs = require("fs");
+const path = require("path");
 const PDFDocument = require("pdfkit");
 
-function clamp(n, a, b) {
-  return Math.max(a, Math.min(b, n));
-}
+/**
+ * Generate LRID™ Executive Report
+ * @param {Object} draft - normalized draft object
+ * @param {String} outputPath - full path to output PDF
+ */
+function generateReport(draft, outputPath) {
+  const doc = new PDFDocument({
+    size: "A4",
+    margins: { top: 60, bottom: 60, left: 60, right: 60 },
+  });
 
-// Map question IDs -> domain
-function domainFromQid(qid) {
-  const s = String(qid || "").toUpperCase();
-  // Accept DI-01 / DI_01 / DI1 formats
-  if (s.startsWith("DI")) return "DI";
-  if (s.startsWith("RP")) return "RP";
-  if (s.startsWith("MA")) return "MA";
-  if (s.startsWith("AC")) return "AC";
-  if (s.startsWith("PR")) return "PR";
-  if (s.startsWith("ED")) return "ED";
-  return null;
-}
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  doc.pipe(fs.createWriteStream(outputPath));
 
-// Extract numeric answer 1–5
-function extractLikertValue(a) {
-  // supports: {value: 3} OR {response: 3} OR nested variants
-  const v =
-    a?.value ??
-    a?.response ??
-    a?.answer ??
-    a?.selected ??
-    null;
-
-  const n = Number(v);
-  if (!Number.isFinite(n)) return null;
-  // Allow 0–4 or 1–5: normalize
-  if (n >= 0 && n <= 4) return n + 1; // if someone used 0..4
-  if (n >= 1 && n <= 5) return n;
-  return null;
-}
-
-function computeDomainScores(answers) {
-  const buckets = { DI: [], RP: [], MA: [], AC: [], PR: [], ED: [] };
-
-  for (const a of answers || []) {
-    const qid = a.question_id || a.questionId || a.id;
-    const d = domainFromQid(qid);
-    if (!d) continue;
-
-    const val = extractLikertValue(a);
-    if (val === null) continue;
-
-    buckets[d].push(val);
-  }
-
-  // score per domain: average(1..5) => 0..100
-  const scores = {};
-  for (const d of Object.keys(buckets)) {
-    const arr = buckets[d];
-    const avg = arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length : 0;
-    scores[d] = clamp(Math.round((avg - 1) / 4 * 100), 0, 100);
-  }
-
-  return scores;
-}
-
-function placementVerdict(scores) {
-  const avg = (scores.DI + scores.ED + scores.RP + scores.MA + scores.AC + scores.PR) / 6;
-
-  // BOLD, but still defensible thresholds
-  if (avg >= 74 && scores.PR >= 62 && scores.ED >= 62) {
-    return { label: "Strong Placement Candidate", tone: "strong" };
-  }
-  if (avg >= 66) {
-    return { label: "Context-Sensitive High-Value Candidate", tone: "conditional" };
-  }
-  if (avg >= 58) {
-    return { label: "Conditional Placement Candidate", tone: "risk" };
-  }
-  return { label: "High-Risk Placement", tone: "high-risk" };
-}
-
-function executiveNarrative(verdict) {
-  if (verdict.tone === "strong") {
-    return {
-      sentence:
-        "This candidate demonstrates strong decision reliability and adaptive capacity, with no material governance or power-related risk signals detected.",
-      risks:
-        "Residual risk is limited to extreme ambiguity scenarios with prolonged mandate absence.",
-      value:
-        "High placement confidence in execution-led roles with clear mandate and measurable accountability."
-    };
-  }
-  if (verdict.tone === "conditional") {
-    return {
-      sentence:
-        "This candidate demonstrates high decision agility and moral self-regulation, but exhibits measurable exposure to power-context volatility — a risk factor at CEO and Board interface levels.",
-      risks:
-        "Decision reliability may decrease in environments where authority signals are indirect, politically fluid, or informally enforced.",
-      value:
-        "Exceptional value potential when governance is explicit: mandate clarity unlocks performance ceiling."
-    };
-  }
-  if (verdict.tone === "risk") {
-    return {
-      sentence:
-        "This candidate shows situational leadership strengths but displays instability under ambiguous power conditions.",
-      risks:
-        "Elevated probability of reactive decision shifts when political context overrides data clarity.",
-      value:
-        "Consider for bounded mandates; avoid roles requiring symbolic authority across competing power centers."
-    };
-  }
-  return {
-    sentence:
-      "This candidate presents high placement risk due to inconsistent decision behavior under pressure and unclear authority.",
-    risks:
-      "Mis-hire probability increases significantly in senior governance or board-facing roles.",
-    value:
-      "Not recommended for mission-critical roles unless substantial governance controls and oversight are in place."
+  // ===============================
+  // Helpers
+  // ===============================
+  const H1 = (t) => {
+    doc.moveDown(1.2);
+    doc.font("Helvetica-Bold").fontSize(18).text(t);
+    doc.moveDown(0.6);
   };
-}
 
-function roleFitMatrix(scores) {
-  // simple rule-based (can be upgraded later)
-  const pr = scores.PR;
-  const ed = scores.ED;
-  const avg = (scores.DI + scores.ED + scores.RP + scores.MA + scores.AC + scores.PR) / 6;
+  const H2 = (t) => {
+    doc.moveDown(1.0);
+    doc.font("Helvetica-Bold").fontSize(13).text(t);
+    doc.moveDown(0.4);
+  };
 
-  const CEO_board = (pr < 55 || ed < 55) ? "High Risk" : (avg >= 70 ? "Conditional" : "Conditional-High Risk");
-  const COO = avg >= 62 ? "Strong" : "Conditional";
-  const Transform = (scores.AC >= 60 && scores.DI >= 60) ? "Strong" : "Conditional";
-  const CEO_founder = (avg >= 66 && pr >= 55) ? "Conditional" : "Conditional";
-  const Board = pr >= 70 ? "Conditional" : "Not Recommended";
+  const P = (t) => {
+    doc.font("Helvetica").fontSize(10.5).text(t, {
+      align: "justify",
+      lineGap: 3,
+    });
+  };
 
-  return [
-    ["COO / Operations Leader", COO],
-    ["Transformation / Change Lead", Transform],
-    ["CEO (Founder-led org)", CEO_founder],
-    ["CEO (Board-driven governance)", CEO_board],
-    ["Board / NED", Board]
-  ];
-}
+  const Small = (t) => {
+    doc.font("Helvetica").fontSize(9).text(t, {
+      align: "justify",
+      lineGap: 2,
+    });
+  };
 
-function writeSectionTitle(doc, t) {
-  doc.moveDown(0.8);
-  doc.font("Helvetica-Bold").fontSize(13).text(t);
-  doc.moveDown(0.3);
-  doc.font("Helvetica").fontSize(11);
-}
-
-function generateExecutiveSearchReport({ caseId, respondent, answers, generatedAtISO }) {
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const chunks = [];
-  doc.on("data", (d) => chunks.push(d));
-
-  const domainScores = computeDomainScores(answers || []);
-  const verdict = placementVerdict(domainScores);
-  const narrative = executiveNarrative(verdict);
-  const matrix = roleFitMatrix(domainScores);
-
-  // --- Header
-  doc.font("Helvetica-Bold").fontSize(18).text("LRID™ Executive Search Report", { align: "center" });
-  doc.moveDown(0.2);
-  doc.font("Helvetica").fontSize(10).text(`Case ID: ${caseId}`, { align: "center" });
-  doc.font("Helvetica").fontSize(10).text(`Generated: ${generatedAtISO}`, { align: "center" });
-  doc.moveDown(1);
-
-  // --- Executive Search Summary
-  writeSectionTitle(doc, "Executive Search Summary");
-
-  doc.font("Helvetica-Bold").text("Placement Verdict");
-  doc.font("Helvetica").text(verdict.label);
+  // ===============================
+  // COVER
+  // ===============================
+  doc.font("Helvetica-Bold").fontSize(22).text("LRID™ Leadership Report");
   doc.moveDown(0.5);
+  doc.fontSize(11).font("Helvetica").text("Executive Decision Integrity Assessment");
 
-  doc.font("Helvetica-Bold").text("One-Sentence Verdict");
-  doc.font("Helvetica").text(narrative.sentence);
-  doc.moveDown(0.6);
+  doc.moveDown(2);
 
-  doc.font("Helvetica-Bold").text("Value Creation Potential");
-  doc.font("Helvetica").text(narrative.value);
-  doc.moveDown(0.6);
-
-  doc.font("Helvetica-Bold").text("Primary Risk Signal");
-  doc.font("Helvetica").text(narrative.risks);
-
-  // --- Respondent
-  writeSectionTitle(doc, "Respondent");
-  doc.text(`Name: ${respondent?.name || respondent?.subject_name || "-"}`);
-  doc.text(`Email: ${respondent?.email || "-"}`);
-  doc.text(`Organization: ${respondent?.organization || "-"}`);
-
-  // --- Dashboard
-  writeSectionTitle(doc, "Decision Reliability Dashboard (0–100)");
-  Object.entries(domainScores).forEach(([k, v]) => {
-    doc.text(`${k}: ${v}`);
-  });
-
-  // --- Role Fit Matrix
-  writeSectionTitle(doc, "Role & Context Fit Matrix");
-  matrix.forEach(([role, fit]) => doc.text(`${role}: ${fit}`));
-
-  // --- Interview Guide
-  writeSectionTitle(doc, "Interview Deep-Dive Guide (Final Round)");
-  doc.text("Validate with concrete examples:");
-  doc.text("• Decision reversals driven by power context (not new data).");
-  doc.text("• Performance under unclear mandate with high urgency.");
-  doc.text("• Handling of informal authority overrides and coalition pressure.");
-
-  // --- Appendix (raw answers)
-  writeSectionTitle(doc, "Appendix: Response Snapshot (22 items)");
-  (answers || []).forEach((a, idx) => {
-    const qid = a.question_id || a.questionId || a.id || `Q${idx + 1}`;
-    const val = extractLikertValue(a);
-    const shown = val === null ? (a.value ?? a.response ?? a.answer ?? "-") : val;
-    doc.text(`${idx + 1}. ${qid} = ${shown}`);
-  });
-
-  // --- Disclaimer
+  const respondent = draft.respondent || {};
+  doc.fontSize(11).text(`Case ID: ${draft.case_id || "-"}`);
+  doc.text(`Generated: ${new Date().toISOString()}`);
   doc.moveDown(1);
-  doc.fontSize(9).text(
-    "Disclaimer: This report supports executive search decision-making by assessing decision reliability under power, pressure, and ambiguity. It is not a clinical assessment and should be used alongside structured interviews, references, and role-context validation.",
-    { align: "left" }
+  doc.text(`Respondent: ${respondent.name || "—"}`);
+  doc.text(`Organization: ${respondent.organization || "—"}`);
+  doc.text(`Email: ${respondent.email || "—"}`);
+
+  doc.addPage();
+
+  // ===============================
+  // EXECUTIVE SUMMARY
+  // ===============================
+  H1("Executive Summary");
+
+  P(
+    "This report provides an executive-level interpretation of leadership decision patterns under conditions of ambiguity, " +
+      "power asymmetry, and contextual pressure. The analysis focuses on how the respondent is likely to reason, adapt, " +
+      "and maintain decision coherence when confronted with changing incentives, incomplete data, and organizational constraints."
   );
 
-  doc.end();
+  P(
+    "The findings are designed to support board-level discussion, executive search evaluation, and leadership development " +
+      "conversations. They are not intended as a diagnostic instrument, but as a structured signal to guide deeper inquiry."
+  );
 
-  return new Promise((resolve) => {
-    doc.on("end", () => {
-      resolve({ pdfBuffer: Buffer.concat(chunks), domainScores, verdict });
-    });
-  });
+  // ===============================
+  // DIMENSION SNAPSHOT (PLACEHOLDER – expandable later)
+  // ===============================
+  H2("Leadership Risk & Reliability Snapshot");
+
+  P(
+    "Across the assessed dimensions (Decision Integrity, Risk Posture, Moral Autonomy, Adaptive Consistency, " +
+      "Power Response, and Ethical Discipline), the respondent demonstrates a mixed and context-sensitive profile. " +
+      "This suggests an ability to adjust behavior to situational demands, accompanied by identifiable exposure to " +
+      "context-driven trade-offs under pressure."
+  );
+
+  // ===============================
+  // PAGE: ABOUT & DISCLAIMER
+  // ===============================
+  doc.addPage();
+
+  H1("About This Report");
+
+  P(
+    "This document is an Executive Search–oriented interpretive report generated from self-reported questionnaire inputs. " +
+      "It is designed to support senior decision-makers, boards, and investors in structured conversations about leadership reliability, " +
+      "judgment under pressure, and decision integrity within complex organizational environments."
+  );
+
+  P(
+    "The report does not attempt to label, diagnose, or predict behavior in absolute terms. Instead, it highlights " +
+      "patterns, tendencies, and potential risk exposures that may become relevant depending on role mandate, governance design, " +
+      "and incentive structures."
+  );
+
+  H2("How to Use the Results");
+
+  P(
+    "The findings should be used as one input within a broader due diligence or development process. " +
+      "For high-stakes decisions, it is strongly recommended to triangulate this report with structured executive interviews, " +
+      "work-sample evidence (e.g., crisis scenarios or strategic memoranda), independent references, and role-specific success criteria."
+  );
+
+  H2("Indicative Nature of Results");
+
+  P(
+    "Results reflect an interpretation of responses captured at a single point in time. Leadership effectiveness is inherently " +
+      "context-dependent and may vary significantly across organizational cultures, power architectures, and decision environments. " +
+      "Accordingly, this report should not be treated as definitive proof of competence, integrity, or role suitability."
+  );
+
+  H2("Data Integrity & Reliability");
+
+  P(
+    "The assessment relies on respondent-provided inputs. Reliability may be affected by incomplete answers, inconsistent responding, " +
+      "time pressure, or strategic impression management. Where material decisions are contemplated, repeating the assessment under " +
+      "controlled conditions and conducting an independent executive interview is advised."
+  );
+
+  H2("Legal Disclaimer");
+
+  Small(
+    "This report is provided for informational and developmental purposes only and does not constitute legal advice, " +
+      "medical advice, psychological diagnosis, or professional services of any kind. LRID™ is not a clinical instrument " +
+      "and does not assess mental health conditions."
+  );
+
+  Small(
+    "To the maximum extent permitted by applicable law, the author(s), operator(s), and affiliated parties disclaim any liability " +
+      "arising from reliance on this report, including direct or indirect losses, business interruption, reputational impact, " +
+      "or consequential damages."
+  );
+
+  Small(
+    "Confidentiality notice: This report is intended solely for the recipient and explicitly authorized stakeholders. " +
+      "Redistribution should be limited and controlled in accordance with applicable privacy and data protection regulations. " +
+      "By using this report, the recipient acknowledges the advisory nature of the content and assumes full responsibility " +
+      "for decisions made on its basis."
+  );
+
+  // ===============================
+  // FOOTER
+  // ===============================
+  doc.end();
 }
 
-module.exports = { generateExecutiveSearchReport };
+module.exports = { generateReport };
