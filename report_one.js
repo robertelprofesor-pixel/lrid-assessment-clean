@@ -1,262 +1,232 @@
-// report_one.js — LRID™ single report generator (PDFKit) — Report v1 (scored domains + narrative)
-
-const path = require("path");
-const fs = require("fs");
+// report_one.js — Executive Search grade (BOLD) LRID™ report
 const PDFDocument = require("pdfkit");
-const { OUT_DIR, ensureDir } = require("./storage");
 
-// --------------------
-// Config (tune later)
-// --------------------
-const DOMAIN_LABELS = {
-  DI: "Decision Intelligence",
-  RP: "Resilience & Pressure",
-  MA: "Moral Authority",
-  AC: "Adaptive Capacity",
-  PR: "People & Relationships",
-  ED: "Execution Discipline",
-};
-
-// If your scale is 0–4 (as in your answers), max per question = 4
-const MAX_PER_ITEM = 4;
-
-// Interpretation thresholds (percent)
-function levelFromPct(pct) {
-  if (pct >= 75) return { level: "High", note: "strong and consistent capability" };
-  if (pct >= 50) return { level: "Moderate", note: "generally effective but inconsistent under pressure" };
-  return { level: "Developing", note: "clear growth opportunity; focus and practice required" };
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(b, n));
 }
 
-function safeText(x) {
-  return (x === null || x === undefined) ? "-" : String(x);
+// Map question IDs -> domain
+function domainFromQid(qid) {
+  const s = String(qid || "").toUpperCase();
+  // Accept DI-01 / DI_01 / DI1 formats
+  if (s.startsWith("DI")) return "DI";
+  if (s.startsWith("RP")) return "RP";
+  if (s.startsWith("MA")) return "MA";
+  if (s.startsWith("AC")) return "AC";
+  if (s.startsWith("PR")) return "PR";
+  if (s.startsWith("ED")) return "ED";
+  return null;
 }
 
-function groupAnswers(answers = []) {
-  const groups = {};
-  for (const a of answers) {
-    const id = (a.question_id || a.id || "").toString().trim();
-    const m = id.match(/^([A-Z]{2})/); // DI, RP, MA...
-    const dom = m ? m[1] : "OT";
-    if (!groups[dom]) groups[dom] = [];
-    const v = Number(a.value);
-    groups[dom].push({
-      id,
-      value: Number.isFinite(v) ? v : null,
-    });
-  }
-  return groups;
+// Extract numeric answer 1–5
+function extractLikertValue(a) {
+  // supports: {value: 3} OR {response: 3} OR nested variants
+  const v =
+    a?.value ??
+    a?.response ??
+    a?.answer ??
+    a?.selected ??
+    null;
+
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  // Allow 0–4 or 1–5: normalize
+  if (n >= 0 && n <= 4) return n + 1; // if someone used 0..4
+  if (n >= 1 && n <= 5) return n;
+  return null;
 }
 
-function computeDomainStats(groups) {
-  const rows = [];
+function computeDomainScores(answers) {
+  const buckets = { DI: [], RP: [], MA: [], AC: [], PR: [], ED: [] };
 
-  for (const dom of Object.keys(DOMAIN_LABELS)) {
-    const items = groups[dom] || [];
-    const n = items.length;
+  for (const a of answers || []) {
+    const qid = a.question_id || a.questionId || a.id;
+    const d = domainFromQid(qid);
+    if (!d) continue;
 
-    const sum = items.reduce((acc, it) => acc + (Number.isFinite(it.value) ? it.value : 0), 0);
-    const max = n * MAX_PER_ITEM;
-    const pct = max > 0 ? Math.round((sum / max) * 100) : 0;
+    const val = extractLikertValue(a);
+    if (val === null) continue;
 
-    const lvl = levelFromPct(pct);
-
-    rows.push({
-      code: dom,
-      name: DOMAIN_LABELS[dom],
-      n,
-      sum,
-      max,
-      pct,
-      level: lvl.level,
-      note: lvl.note,
-    });
+    buckets[d].push(val);
   }
 
-  // Overall across known domains only
-  const totalSum = rows.reduce((a, r) => a + r.sum, 0);
-  const totalMax = rows.reduce((a, r) => a + r.max, 0);
-  const overallPct = totalMax > 0 ? Math.round((totalSum / totalMax) * 100) : 0;
-  const overallLevel = levelFromPct(overallPct);
+  // score per domain: average(1..5) => 0..100
+  const scores = {};
+  for (const d of Object.keys(buckets)) {
+    const arr = buckets[d];
+    const avg = arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length : 0;
+    scores[d] = clamp(Math.round((avg - 1) / 4 * 100), 0, 100);
+  }
 
-  return { rows, totalSum, totalMax, overallPct, overallLevel };
+  return scores;
 }
 
-function topAndBottom(rows) {
-  const sorted = [...rows].sort((a, b) => b.pct - a.pct);
-  const top = sorted.slice(0, 2);
-  const bottom = sorted.slice(-2).reverse();
-  return { top, bottom };
+function placementVerdict(scores) {
+  const avg = (scores.DI + scores.ED + scores.RP + scores.MA + scores.AC + scores.PR) / 6;
+
+  // BOLD, but still defensible thresholds
+  if (avg >= 74 && scores.PR >= 62 && scores.ED >= 62) {
+    return { label: "Strong Placement Candidate", tone: "strong" };
+  }
+  if (avg >= 66) {
+    return { label: "Context-Sensitive High-Value Candidate", tone: "conditional" };
+  }
+  if (avg >= 58) {
+    return { label: "Conditional Placement Candidate", tone: "risk" };
+  }
+  return { label: "High-Risk Placement", tone: "high-risk" };
 }
 
-// --------------------
-// PDF helpers
-// --------------------
-function h1(doc, text) {
-  doc.fontSize(20).text(text, { align: "center" });
-  doc.moveDown(0.6);
-}
-
-function h2(doc, text) {
-  doc.fontSize(14).text(text, { underline: true });
-  doc.moveDown(0.3);
-}
-
-function p(doc, text) {
-  doc.fontSize(11).text(text, { lineGap: 3 });
-  doc.moveDown(0.5);
-}
-
-function keyValue(doc, k, v) {
-  doc.fontSize(11).text(`${k}: ${safeText(v)}`);
-}
-
-function tableHeader(doc, cols) {
-  doc.fontSize(10);
-  doc.text(cols.join("  |  "));
-  doc.moveDown(0.2);
-  doc.text("-".repeat(95));
-  doc.moveDown(0.3);
-}
-
-function tableRow(doc, cols) {
-  doc.fontSize(10);
-  doc.text(cols.join("  |  "));
-}
-
-function recommendationForDomain(code, level) {
-  const base = {
-    DI: {
-      Developing: "Build a repeatable decision cadence (framing → options → risk check → commit). Use pre-mortems and decision logs for 30 days.",
-      Moderate: "Increase decision speed without losing quality: set decision timeboxes and define ‘reversible vs irreversible’ decisions explicitly.",
-      High: "Institutionalize your method: teach your decision cycle to the team and create a lightweight playbook for recurring decisions.",
-    },
-    RP: {
-      Developing: "Create a resilience routine (sleep, recovery, boundaries). Practice ‘pressure reps’: simulate deadlines and debrief emotional triggers.",
-      Moderate: "Strengthen stress discipline: identify top 3 pressure patterns and build counter-actions (pause, reframe, micro-plans).",
-      High: "Use your resilience as leverage: become the stabilizer in crisis and coach others on pressure management.",
-    },
-    MA: {
-      Developing: "Clarify non-negotiables. Build ethical reflexes: if-then rules for grey-zone situations and a ‘values checkpoint’ in key decisions.",
-      Moderate: "Increase consistency: align incentives and consequences; address small integrity breaches early.",
-      High: "Lead by moral example: create psychological safety and set standards that protect trust during conflict and change.",
-    },
-    AC: {
-      Developing: "Train adaptability: weekly learning sprints, faster feedback loops, and deliberate ‘unlearning’ of one outdated habit per month.",
-      Moderate: "Improve agility: shorten planning cycles and test assumptions early through small pilots.",
-      High: "Scale adaptability: build an adaptive culture with experimentation norms and clear learning accountability.",
-    },
-    PR: {
-      Developing: "Invest in trust: 1:1 cadence, active listening, and explicit expectations. Practice difficult conversations with structure.",
-      Moderate: "Increase influence: map stakeholders, tailor messages, and close loops (who decides, who executes, by when).",
-      High: "Use relationships strategically: create alignment across units and mentor high-potential talent systematically.",
-    },
-    ED: {
-      Developing: "Improve execution hygiene: weekly priorities, daily top-3 tasks, and strict definition of done. Remove one major bottleneck this week.",
-      Moderate: "Raise reliability: track commitments, reduce context switching, and implement a simple operating rhythm.",
-      High: "Build an execution system: dashboards, leading indicators, and delegation standards with clear accountability.",
-    },
+function executiveNarrative(verdict) {
+  if (verdict.tone === "strong") {
+    return {
+      sentence:
+        "This candidate demonstrates strong decision reliability and adaptive capacity, with no material governance or power-related risk signals detected.",
+      risks:
+        "Residual risk is limited to extreme ambiguity scenarios with prolonged mandate absence.",
+      value:
+        "High placement confidence in execution-led roles with clear mandate and measurable accountability."
+    };
+  }
+  if (verdict.tone === "conditional") {
+    return {
+      sentence:
+        "This candidate demonstrates high decision agility and moral self-regulation, but exhibits measurable exposure to power-context volatility — a risk factor at CEO and Board interface levels.",
+      risks:
+        "Decision reliability may decrease in environments where authority signals are indirect, politically fluid, or informally enforced.",
+      value:
+        "Exceptional value potential when governance is explicit: mandate clarity unlocks performance ceiling."
+    };
+  }
+  if (verdict.tone === "risk") {
+    return {
+      sentence:
+        "This candidate shows situational leadership strengths but displays instability under ambiguous power conditions.",
+      risks:
+        "Elevated probability of reactive decision shifts when political context overrides data clarity.",
+      value:
+        "Consider for bounded mandates; avoid roles requiring symbolic authority across competing power centers."
+    };
+  }
+  return {
+    sentence:
+      "This candidate presents high placement risk due to inconsistent decision behavior under pressure and unclear authority.",
+    risks:
+      "Mis-hire probability increases significantly in senior governance or board-facing roles.",
+    value:
+      "Not recommended for mission-critical roles unless substantial governance controls and oversight are in place."
   };
-
-  const key = level === "High" ? "High" : level === "Moderate" ? "Moderate" : "Developing";
-  return base[code]?.[key] || "Focus on deliberate practice and consistent routines in this capability area.";
 }
 
-async function generateSingleReport({ caseId, draftData, outputBaseUrl }) {
-  ensureDir(OUT_DIR);
+function roleFitMatrix(scores) {
+  // simple rule-based (can be upgraded later)
+  const pr = scores.PR;
+  const ed = scores.ED;
+  const avg = (scores.DI + scores.ED + scores.RP + scores.MA + scores.AC + scores.PR) / 6;
 
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const caseFolderName = `case_${caseId}_${ts}`;
-  const caseFolder = path.join(OUT_DIR, caseFolderName);
-  fs.mkdirSync(caseFolder, { recursive: true });
+  const CEO_board = (pr < 55 || ed < 55) ? "High Risk" : (avg >= 70 ? "Conditional" : "Conditional-High Risk");
+  const COO = avg >= 62 ? "Strong" : "Conditional";
+  const Transform = (scores.AC >= 60 && scores.DI >= 60) ? "Strong" : "Conditional";
+  const CEO_founder = (avg >= 66 && pr >= 55) ? "Conditional" : "Conditional";
+  const Board = pr >= 70 ? "Conditional" : "Not Recommended";
 
-  const pdfPath = path.join(caseFolder, "LRID_Report.pdf");
+  return [
+    ["COO / Operations Leader", COO],
+    ["Transformation / Change Lead", Transform],
+    ["CEO (Founder-led org)", CEO_founder],
+    ["CEO (Board-driven governance)", CEO_board],
+    ["Board / NED", Board]
+  ];
+}
 
-  const respondent = draftData?.respondent || {};
-  const answers = Array.isArray(draftData?.answers) ? draftData.answers : [];
+function writeSectionTitle(doc, t) {
+  doc.moveDown(0.8);
+  doc.font("Helvetica-Bold").fontSize(13).text(t);
+  doc.moveDown(0.3);
+  doc.font("Helvetica").fontSize(11);
+}
 
-  const groups = groupAnswers(answers);
-  const stats = computeDomainStats(groups);
-  const { top, bottom } = topAndBottom(stats.rows);
-
+function generateExecutiveSearchReport({ caseId, respondent, answers, generatedAtISO }) {
   const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const stream = fs.createWriteStream(pdfPath);
-  doc.pipe(stream);
+  const chunks = [];
+  doc.on("data", (d) => chunks.push(d));
 
-  // --- Cover / header
-  h1(doc, "LRID™ Leadership Competency Report");
-  doc.fontSize(12).text("Confidential — for personal development and professional coaching use.", { align: "center" });
+  const domainScores = computeDomainScores(answers || []);
+  const verdict = placementVerdict(domainScores);
+  const narrative = executiveNarrative(verdict);
+  const matrix = roleFitMatrix(domainScores);
+
+  // --- Header
+  doc.font("Helvetica-Bold").fontSize(18).text("LRID™ Executive Search Report", { align: "center" });
+  doc.moveDown(0.2);
+  doc.font("Helvetica").fontSize(10).text(`Case ID: ${caseId}`, { align: "center" });
+  doc.font("Helvetica").fontSize(10).text(`Generated: ${generatedAtISO}`, { align: "center" });
   doc.moveDown(1);
 
-  keyValue(doc, "Case ID", caseId);
-  keyValue(doc, "Generated", new Date().toISOString());
+  // --- Executive Search Summary
+  writeSectionTitle(doc, "Executive Search Summary");
+
+  doc.font("Helvetica-Bold").text("Placement Verdict");
+  doc.font("Helvetica").text(verdict.label);
+  doc.moveDown(0.5);
+
+  doc.font("Helvetica-Bold").text("One-Sentence Verdict");
+  doc.font("Helvetica").text(narrative.sentence);
   doc.moveDown(0.6);
 
-  h2(doc, "Respondent");
-  keyValue(doc, "Name", respondent.name);
-  keyValue(doc, "Email", respondent.email);
-  keyValue(doc, "Organization", respondent.organization);
-  doc.moveDown(0.8);
-
-  // --- Executive summary
-  h2(doc, "Executive Summary");
-  const overallLine = `Overall leadership capability score: ${stats.overallPct}% (${stats.overallLevel.level}) — ${stats.overallLevel.note}.`;
-  p(doc, overallLine);
-
-  const topText = top.map(t => `${t.name} (${t.pct}%)`).join(", ");
-  const bottomText = bottom.map(b => `${b.name} (${b.pct}%)`).join(", ");
-
-  p(doc, `Top strengths: ${topText || "-"}.`);
-  p(doc, `Priority development areas: ${bottomText || "-"}.`);
-
-  // --- Score table
-  h2(doc, "Scores by Competency Domain");
-  tableHeader(doc, ["Domain", "Items", "Score", "Max", "%", "Level"]);
-  for (const r of stats.rows) {
-    tableRow(doc, [
-      `${r.code} — ${r.name}`,
-      String(r.n),
-      String(r.sum),
-      String(r.max),
-      `${r.pct}%`,
-      r.level,
-    ]);
-    doc.moveDown(0.2);
-  }
+  doc.font("Helvetica-Bold").text("Value Creation Potential");
+  doc.font("Helvetica").text(narrative.value);
   doc.moveDown(0.6);
 
-  // --- Interpretation and recommendations
-  h2(doc, "Interpretation & Recommendations");
-  for (const r of stats.rows) {
-    doc.fontSize(12).text(`${r.code} — ${r.name}: ${r.pct}% (${r.level})`, { continued: false });
-    doc.moveDown(0.2);
-    doc.fontSize(11).text(`Interpretation: ${r.note}.`, { lineGap: 2 });
-    doc.moveDown(0.2);
-    doc.fontSize(11).text(`Recommendation: ${recommendationForDomain(r.code, r.level)}`, { lineGap: 2 });
-    doc.moveDown(0.6);
-  }
+  doc.font("Helvetica-Bold").text("Primary Risk Signal");
+  doc.font("Helvetica").text(narrative.risks);
 
-  // --- Appendix (optional raw answers for auditability)
-  h2(doc, "Appendix: Item Responses (for transparency)");
-  const flat = [];
-  Object.keys(groups).forEach(k => groups[k].forEach(it => flat.push(it)));
-  flat.sort((a, b) => a.id.localeCompare(b.id));
+  // --- Respondent
+  writeSectionTitle(doc, "Respondent");
+  doc.text(`Name: ${respondent?.name || respondent?.subject_name || "-"}`);
+  doc.text(`Email: ${respondent?.email || "-"}`);
+  doc.text(`Organization: ${respondent?.organization || "-"}`);
 
-  flat.forEach((it, idx) => {
-    doc.fontSize(10).text(`${idx + 1}. ${it.id} = ${safeText(it.value)}`);
-    if ((idx + 1) % 45 === 0) doc.addPage();
+  // --- Dashboard
+  writeSectionTitle(doc, "Decision Reliability Dashboard (0–100)");
+  Object.entries(domainScores).forEach(([k, v]) => {
+    doc.text(`${k}: ${v}`);
   });
+
+  // --- Role Fit Matrix
+  writeSectionTitle(doc, "Role & Context Fit Matrix");
+  matrix.forEach(([role, fit]) => doc.text(`${role}: ${fit}`));
+
+  // --- Interview Guide
+  writeSectionTitle(doc, "Interview Deep-Dive Guide (Final Round)");
+  doc.text("Validate with concrete examples:");
+  doc.text("• Decision reversals driven by power context (not new data).");
+  doc.text("• Performance under unclear mandate with high urgency.");
+  doc.text("• Handling of informal authority overrides and coalition pressure.");
+
+  // --- Appendix (raw answers)
+  writeSectionTitle(doc, "Appendix: Response Snapshot (22 items)");
+  (answers || []).forEach((a, idx) => {
+    const qid = a.question_id || a.questionId || a.id || `Q${idx + 1}`;
+    const val = extractLikertValue(a);
+    const shown = val === null ? (a.value ?? a.response ?? a.answer ?? "-") : val;
+    doc.text(`${idx + 1}. ${qid} = ${shown}`);
+  });
+
+  // --- Disclaimer
+  doc.moveDown(1);
+  doc.fontSize(9).text(
+    "Disclaimer: This report supports executive search decision-making by assessing decision reliability under power, pressure, and ambiguity. It is not a clinical assessment and should be used alongside structured interviews, references, and role-context validation.",
+    { align: "left" }
+  );
 
   doc.end();
 
-  await new Promise((resolve, reject) => {
-    stream.on("finish", resolve);
-    stream.on("error", reject);
+  return new Promise((resolve) => {
+    doc.on("end", () => {
+      resolve({ pdfBuffer: Buffer.concat(chunks), domainScores, verdict });
+    });
   });
-
-  // URL served by: app.use("/out", express.static(OUT_DIR))
-  const publicUrl = `${outputBaseUrl}/out/${caseFolderName}/LRID_Report.pdf`;
-
-  return { pdfPath, publicUrl };
 }
 
-module.exports = { generateSingleReport };
+module.exports = { generateExecutiveSearchReport };
