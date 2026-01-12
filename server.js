@@ -1,159 +1,412 @@
-// server.js — LRID™ FINAL (Resend-based, SMTP-free)
+// server.js — LRID™ production server (SMTP-free / Resend) + Review panel compatible
+// Fixes: /config/questions.lrid.v1.json + keeps /review/api aliases + generates single PDF report
 
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const express = require("express");
 
+const { DATA_DIR, APPROVALS_DIR, OUT_DIR, ensureDir } = require("./storage");
+const { generateSingleReport } = require("./report_one");
 const { sendReportEmail } = require("./mailer");
 
 const app = express();
 
-/* =========================
-   STORAGE
-========================= */
-
-const STORAGE_ROOT = process.env.STORAGE_ROOT || "/data";
-const DATA_DIR = path.join(STORAGE_ROOT, "data");
-const OUT_DIR = path.join(STORAGE_ROOT, "out");
-
-function ensureDir(dir) {
-  try {
-    fs.mkdirSync(dir, { recursive: true });
-    return dir;
-  } catch {
-    const fallback = path.join("/tmp", path.basename(dir));
-    fs.mkdirSync(fallback, { recursive: true });
-    return fallback;
-  }
-}
-
-const EFFECTIVE_DATA_DIR = ensureDir(DATA_DIR);
-const EFFECTIVE_OUT_DIR = ensureDir(OUT_DIR);
-
-/* =========================
-   MIDDLEWARE
-========================= */
-
+/* --------------------
+   Middleware
+-------------------- */
 app.disable("x-powered-by");
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 app.use((req, res, next) => {
-  if (req.path.includes("/api")) {
-    console.log(`[API] ${req.method} ${req.path}`);
-  }
+  if (req.path.includes("/api/")) console.log(`[API] ${req.method} ${req.path}`);
   next();
 });
 
-/* =========================
-   HEALTH
-========================= */
+/* --------------------
+   Static assets
+   IMPORTANT: questionnaire expects /config/questions.lrid.v1.json
+-------------------- */
+app.use(express.static(__dirname, { extensions: ["html"], fallthrough: true }));
+app.use("/config", express.static(__dirname)); // ✅ /config/questions.lrid.v1.json works
+app.use("/out", express.static(OUT_DIR));      // ✅ public PDF urls
 
+/* --------------------
+   Health
+-------------------- */
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    dataDir: EFFECTIVE_DATA_DIR,
-    outDir: EFFECTIVE_OUT_DIR,
-    time: new Date().toISOString()
+    storageRoot: process.env.LRID_STORAGE || "(default local .localdata)",
+    dataDir: DATA_DIR,
+    approvalsDir: APPROVALS_DIR,
+    outDir: OUT_DIR,
+    time: new Date().toISOString(),
   });
 });
 
-/* =========================
-   HELPERS
-========================= */
-
-function makeCaseId() {
+/* --------------------
+   Helpers
+-------------------- */
+function makeId(prefix = "LRID") {
   const ts = new Date().toISOString().replace(/[-:.TZ]/g, "");
-  const rnd = crypto.randomBytes(4).toString("hex");
-  return `LRID_${ts}_${rnd}`;
+  const rand = crypto.randomBytes(4).toString("hex");
+  return `${prefix}_${ts}_${rand}`;
+}
+
+function safeJsonParse(x) {
+  try {
+    if (typeof x === "string") return JSON.parse(x);
+    return x;
+  } catch {
+    return x;
+  }
+}
+
+function listFilesSafe(dir) {
+  try {
+    return fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
+function statSafe(p) {
+  try {
+    return fs.statSync(p);
+  } catch {
+    return null;
+  }
+}
+
+function writeJsonFile(filePath, obj) {
+  fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf8");
 }
 
 function publicBaseUrl(req) {
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  return `${proto}://${host}`;
+  const proto = (req.headers["x-forwarded-proto"] || "https").toString();
+  const host = (req.headers["x-forwarded-host"] || req.headers.host || "").toString();
+  return host ? `${proto}://${host}` : "";
 }
 
-/* =========================
-   PDF (PLACEHOLDER)
-========================= */
-
-function generatePdf(caseId) {
-  const caseDir = path.join(EFFECTIVE_OUT_DIR, caseId);
-  fs.mkdirSync(caseDir, { recursive: true });
-
-  const pdfPath = path.join(caseDir, "LRID_Report.pdf");
-  fs.writeFileSync(
-    pdfPath,
-    `LRID REPORT\n\nCase: ${caseId}\nGenerated: ${new Date().toISOString()}`
-  );
-
-  return pdfPath;
+function draftFilenameFromCaseId(caseId) {
+  return `draft_${caseId}.json`;
+}
+function responsesFilenameFromCaseId(caseId) {
+  return `responses_${caseId}.json`;
+}
+function caseIdFromDraftFilename(filename) {
+  const m = filename.match(/^draft_(.+)\.json$/i);
+  return m ? m[1] : null;
+}
+function resolveDraftFilename(idOrFile) {
+  const s = String(idOrFile || "").trim();
+  if (/^draft_.+\.json$/i.test(s)) return s;
+  if (/^draft_.+$/i.test(s) && !s.endsWith(".json")) return `${s}.json`;
+  return draftFilenameFromCaseId(s);
+}
+function readDraftFile(filename) {
+  const safeName = String(filename || "").trim();
+  const filePath = path.join(DATA_DIR, safeName);
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, status: 404, error: "Draft not found", filename: safeName, filePath };
+  }
+  return { ok: true, filename: safeName, filePath, content: fs.readFileSync(filePath, "utf8") };
 }
 
-/* =========================
-   INTAKE
-========================= */
+// Normalize draft shape for any frontend
+function normalizeDraftObject(draftObj, filename) {
+  const base = draftObj || {};
+  const data = base.data || base.submission || base.payload || {};
 
-app.post("/api/intake/submit", async (req, res) => {
-  try {
-    const payload = req.body || {};
-    const caseId = makeCaseId();
+  const caseId = base.case_id || data.case_id || caseIdFromDraftFilename(filename) || null;
 
-    const responsesFile = path.join(
-      EFFECTIVE_DATA_DIR,
-      `responses_${caseId}.json`
-    );
+  return {
+    ok: true,
+    case_id: caseId,
+    status: base.status || "draft",
+    created_at: base.created_at || base.createdAt || null,
+    source: base.source || "intake",
 
-    fs.writeFileSync(
-      responsesFile,
-      JSON.stringify(payload, null, 2),
-      "utf8"
-    );
+    // original
+    data,
 
-    const pdfPath = generatePdf(caseId);
-    const reportUrl = `${publicBaseUrl(req)}/out/${caseId}/LRID_Report.pdf`;
+    // aliases
+    submission: data,
+    payload: data,
+    response: data,
 
-    let emailed = false;
+    tool: data.tool || null,
+    version: data.version || null,
+    timestamps: data.timestamps || null,
+    respondent: data.respondent || null,
+    answers: Array.isArray(data.answers) ? data.answers : [],
 
-    try {
-      await sendReportEmail({
-        to: payload?.respondent?.email,
+    links: base.links || null,
+    meta: { filename, links: base.links || null },
+  };
+}
+
+// Draft list builder (include draftFile)
+function buildDraftList() {
+  const files = listFilesSafe(DATA_DIR).filter((f) => /^draft_.+\.json$/i.test(f));
+
+  return files
+    .map((f) => {
+      const caseId = caseIdFromDraftFilename(f) || f.replace(/\.json$/i, "");
+      const fullPath = path.join(DATA_DIR, f);
+      const st = statSafe(fullPath);
+
+      return {
+        case_id: caseId,
         caseId,
-        pdfPath,
-        publicReportUrl: reportUrl
-      });
-      emailed = true;
-    } catch (mailErr) {
-      console.error("❌ Email failed:", mailErr.message);
+        id: caseId,
+
+        // MUST:
+        draftFile: f,
+
+        // aliases:
+        draft_file: f,
+        draft: f,
+        name: f,
+        file: f,
+        filename: f,
+        path: fullPath,
+        filePath: fullPath,
+
+        mtime: st ? st.mtimeMs : 0,
+        size: st ? st.size : 0,
+      };
+    })
+    .sort((a, b) => b.mtime - a.mtime);
+}
+
+function sendNormalizedDraft(res, filename) {
+  const out = readDraftFile(filename);
+  if (!out.ok) return res.status(out.status).json(out);
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(out.content);
+  } catch {
+    return res.status(500).json({ ok: false, error: "Draft JSON parse error", filename });
+  }
+
+  return res.json(normalizeDraftObject(parsed, filename));
+}
+
+/* --------------------
+   Intake submit
+   - stores responses + draft
+   - generates ONE PDF report
+   - emails via Resend mailer.js
+-------------------- */
+async function handleIntakeSubmit(req, res) {
+  try {
+    const payload = safeJsonParse(req.body) || {};
+    const caseId = payload.case_id ? String(payload.case_id) : makeId("LRID");
+
+    ensureDir(DATA_DIR);
+    ensureDir(APPROVALS_DIR);
+    ensureDir(OUT_DIR);
+
+    const responsesFilename = responsesFilenameFromCaseId(caseId);
+    const draftFilename = draftFilenameFromCaseId(caseId);
+
+    const responsesPath = path.join(DATA_DIR, responsesFilename);
+    const draftPath = path.join(DATA_DIR, draftFilename);
+
+    const envelope = {
+      receivedAt: new Date().toISOString(),
+      ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress,
+      userAgent: req.headers["user-agent"],
+      submission: payload,
+    };
+
+    writeJsonFile(responsesPath, envelope);
+
+    writeJsonFile(draftPath, {
+      case_id: caseId,
+      status: "draft",
+      created_at: new Date().toISOString(),
+      source: "intake",
+      data: payload,
+      links: { responses_file: responsesFilename },
+    });
+
+    // ✅ generate single PDF report
+    const baseUrl = publicBaseUrl(req);
+    const { pdfPath, publicUrl } = await generateSingleReport({
+      caseId,
+      draftData: payload,
+      outputBaseUrl: baseUrl,
+    });
+
+    // ✅ email it
+    let emailed = false;
+    try {
+      const to = payload?.respondent?.email;
+      if (to) {
+        await sendReportEmail({
+          to,
+          caseId,
+          pdfPath,
+          publicReportUrl: publicUrl || "",
+        });
+        emailed = true;
+      }
+    } catch (e) {
+      console.error("❌ Email send failed:", e?.message || e);
     }
 
     res.json({
       ok: true,
       case_id: caseId,
-      pdf: reportUrl,
-      emailed
+      responses_file: responsesPath,
+      draft_file: draftPath,
+      review_url: `${baseUrl}/review`,
+      report_url: publicUrl,
+      report_generated: true,
+      emailed,
+      message: "Submission stored as responses + draft",
     });
   } catch (err) {
-    console.error("❌ Intake error:", err);
-    res.status(500).json({ ok: false, error: "Server error" });
+    console.error("❌ Intake submit error:", err);
+    res.status(500).json({ ok: false, error: "Submit failed (server error)" });
+  }
+}
+
+[
+  "/api/intake/submit",
+  "/api/submit",
+  "/submit",
+  "/intake/submit",
+].forEach((p) => app.post(p, handleIntakeSubmit));
+
+/* --------------------
+   Draft list endpoints (Review compatible)
+-------------------- */
+function handleDraftList(req, res) {
+  try {
+    const drafts = buildDraftList();
+    res.json({
+      ok: true,
+      drafts,
+      count: drafts.length,
+      total: drafts.length,
+      data: {
+        drafts,
+        count: drafts.length,
+        data: { drafts, count: drafts.length },
+      },
+    });
+  } catch (err) {
+    console.error("❌ Draft list error:", err);
+    res.status(500).json({ ok: false, error: "Cannot list drafts" });
+  }
+}
+
+const LIST_PATHS = [
+  "/api/drafts",
+  "/api/draft",
+  "/api/drafts/list",
+  "/api/draft/list",
+  "/api/review/drafts",
+  "/api/review/cases",
+  "/api/cases",
+  "/api/cases/list",
+  "/api/list",
+  "/api/files",
+  "/api/files/list",
+];
+
+LIST_PATHS.forEach((p) => {
+  app.get(p, handleDraftList);
+  app.post(p, handleDraftList);
+});
+
+app.get("/api/drafts/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
+app.get("/api/draft/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
+app.get("/data/:filename", (req, res) => {
+  const filename = String(req.params.filename || "");
+  if (!/^draft_.+\.json$/i.test(filename)) return res.status(400).json({ ok: false, error: "Bad filename" });
+  return sendNormalizedDraft(res, filename);
+});
+
+// ✅ CRITICAL: /review/api aliases (handles fetch("api/drafts") from /review)
+const REVIEW_LIST_PATHS = LIST_PATHS.map((p) => `/review${p}`);
+REVIEW_LIST_PATHS.forEach((p) => {
+  app.get(p, handleDraftList);
+  app.post(p, handleDraftList);
+});
+
+app.get("/review/api/drafts/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
+app.get("/review/api/draft/:id", (req, res) => sendNormalizedDraft(res, resolveDraftFilename(req.params.id)));
+app.get("/review/data/:filename", (req, res) => {
+  const filename = String(req.params.filename || "");
+  if (!/^draft_.+\.json$/i.test(filename)) return res.status(400).json({ ok: false, error: "Bad filename" });
+  return sendNormalizedDraft(res, filename);
+});
+
+/* --------------------
+   Approval save
+-------------------- */
+app.post("/api/approval/save", (req, res) => {
+  try {
+    const payload = safeJsonParse(req.body) || {};
+    const caseId =
+      payload.case_id ||
+      payload.caseId ||
+      payload.case ||
+      payload.selected_case ||
+      payload.selectedCase ||
+      null;
+
+    if (!caseId) return res.status(400).json({ ok: false, error: "Missing case_id" });
+
+    ensureDir(APPROVALS_DIR);
+    const filename = `approval_${caseId}.json`;
+    const filePath = path.join(APPROVALS_DIR, filename);
+
+    writeJsonFile(filePath, {
+      savedAt: new Date().toISOString(),
+      case_id: caseId,
+      approval: payload,
+    });
+
+    res.json({ ok: true, case_id: caseId, file: filePath, message: "Approval saved" });
+  } catch (err) {
+    console.error("❌ approval/save error:", err);
+    res.status(500).json({ ok: false, error: "Cannot save approval" });
   }
 });
 
-/* =========================
-   STATIC
-========================= */
+/* --------------------
+   Pages
+-------------------- */
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/intake", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/review", (req, res) => res.sendFile(path.join(__dirname, "review.html")));
 
-app.use("/out", express.static(EFFECTIVE_OUT_DIR));
-app.use(express.static(__dirname));
+/* --------------------
+   API 404
+-------------------- */
+app.use("/api", (req, res) => {
+  console.warn(`❌ API 404: ${req.method} ${req.path}`);
+  res.status(404).json({ ok: false, error: "API endpoint not found", method: req.method, path: req.path });
+});
 
-/* =========================
-   START
-========================= */
+// Fallback: serve intake SPA
+app.use((req, res) => res.status(404).sendFile(path.join(__dirname, "index.html")));
 
+/* --------------------
+   Start
+-------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ LRID™ Server running on port ${PORT}`);
-  console.log(`✅ DATA_DIR: ${EFFECTIVE_DATA_DIR}`);
-  console.log(`✅ OUT_DIR: ${EFFECTIVE_OUT_DIR}`);
+  console.log(`✅ DATA_DIR: ${DATA_DIR}`);
+  console.log(`✅ APPROVALS_DIR: ${APPROVALS_DIR}`);
+  console.log(`✅ OUT_DIR: ${OUT_DIR}`);
 });
