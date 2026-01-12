@@ -1,15 +1,11 @@
 // report_one.js — LRID™ Executive-Grade PDF Report (FINAL)
+// Export name matches server.js: generateExecutiveSearchReport
 
 const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
 
-/**
- * Generate LRID™ Executive Report
- * @param {Object} draft - normalized draft object
- * @param {String} outputPath - full path to output PDF
- */
-function generateReport(draft, outputPath) {
+function generateExecutiveSearchReport(draft, outputPath) {
   const doc = new PDFDocument({
     size: "A4",
     margins: { top: 60, bottom: 60, left: 60, right: 60 },
@@ -18,57 +14,60 @@ function generateReport(draft, outputPath) {
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   doc.pipe(fs.createWriteStream(outputPath));
 
-  // ===============================
+  // -------------------
   // Helpers
-  // ===============================
+  // -------------------
   const H1 = (t) => {
     doc.moveDown(1.2);
-    doc.font("Helvetica-Bold").fontSize(18).text(t);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor("black").text(t);
     doc.moveDown(0.6);
   };
 
   const H2 = (t) => {
     doc.moveDown(1.0);
-    doc.font("Helvetica-Bold").fontSize(13).text(t);
+    doc.font("Helvetica-Bold").fontSize(13).fillColor("black").text(t);
     doc.moveDown(0.4);
   };
 
   const P = (t) => {
-    doc.font("Helvetica").fontSize(10.5).text(t, {
+    doc.font("Helvetica").fontSize(10.5).fillColor("black").text(t, {
       align: "justify",
       lineGap: 3,
     });
   };
 
   const Small = (t) => {
-    doc.font("Helvetica").fontSize(9).text(t, {
+    doc.font("Helvetica").fontSize(9).fillColor("black").text(t, {
       align: "justify",
       lineGap: 2,
     });
   };
 
-  // ===============================
+  // -------------------
   // COVER
-  // ===============================
+  // -------------------
   doc.font("Helvetica-Bold").fontSize(22).text("LRID™ Leadership Report");
   doc.moveDown(0.5);
-  doc.fontSize(11).font("Helvetica").text("Executive Decision Integrity Assessment");
+  doc.font("Helvetica").fontSize(11).text("Executive Decision Integrity Assessment");
 
   doc.moveDown(2);
 
-  const respondent = draft.respondent || {};
-  doc.fontSize(11).text(`Case ID: ${draft.case_id || "-"}`);
+  const respondent = draft?.respondent || {};
+  const caseId = draft?.case_id || draft?.caseId || draft?.meta?.case_id || "-";
+
+  doc.font("Helvetica").fontSize(11);
+  doc.text(`Case ID: ${caseId}`);
   doc.text(`Generated: ${new Date().toISOString()}`);
   doc.moveDown(1);
-  doc.text(`Respondent: ${respondent.name || "—"}`);
+  doc.text(`Respondent: ${respondent.name || respondent.subject_name || "—"}`);
   doc.text(`Organization: ${respondent.organization || "—"}`);
   doc.text(`Email: ${respondent.email || "—"}`);
 
   doc.addPage();
 
-  // ===============================
+  // -------------------
   // EXECUTIVE SUMMARY
-  // ===============================
+  // -------------------
   H1("Executive Summary");
 
   P(
@@ -82,9 +81,9 @@ function generateReport(draft, outputPath) {
       "conversations. They are not intended as a diagnostic instrument, but as a structured signal to guide deeper inquiry."
   );
 
-  // ===============================
-  // DIMENSION SNAPSHOT (PLACEHOLDER – expandable later)
-  // ===============================
+  // -------------------
+  // DIMENSION SNAPSHOT (placeholder narrative for now)
+  // -------------------
   H2("Leadership Risk & Reliability Snapshot");
 
   P(
@@ -94,9 +93,9 @@ function generateReport(draft, outputPath) {
       "context-driven trade-offs under pressure."
   );
 
-  // ===============================
-  // PAGE: ABOUT & DISCLAIMER
-  // ===============================
+  // -------------------
+  // ABOUT & DISCLAIMER (Option B page)
+  // -------------------
   doc.addPage();
 
   H1("About This Report");
@@ -158,10 +157,7 @@ function generateReport(draft, outputPath) {
       "for decisions made on its basis."
   );
 
-  // ===============================
-  // FOOTER
-  // ===============================
   doc.end();
 }
 
-module.exports = { generateReport };
+module.exports = { generateExecutiveSearchReport };
