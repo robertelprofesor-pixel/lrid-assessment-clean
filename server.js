@@ -135,7 +135,7 @@ function normalizeDraftObject(draftObj, filename) {
     data,
     submission: data,
     payload: data,
-    respondent: data.respondent || data?.respondent || null,
+    respondent: data.respondent || null,
     answers: Array.isArray(data.answers) ? data.answers : (Array.isArray(base.answers) ? base.answers : []),
     meta: { filename },
   };
@@ -195,10 +195,10 @@ async function handleIntakeSubmit(req, res) {
     const draftPath = path.join(EFFECTIVE_DATA_DIR, draftFilename);
 
     // Accept both formats:
-    // A) payload.respondent + payload.answers (your current system)
-    // B) payload.meta/respondent/answers (older schema)
-    const respondent = payload.respondent || payload?.data?.respondent || payload?.respondent || {};
-    const answers = payload.answers || payload?.data?.answers || payload?.answers || [];
+    // A) payload.respondent + payload.answers
+    // B) payload.data.respondent + payload.data.answers
+    const respondent = payload.respondent || payload?.data?.respondent || {};
+    const answers = payload.answers || payload?.data?.answers || [];
 
     const envelope = {
       receivedAt: new Date().toISOString(),
@@ -219,21 +219,32 @@ async function handleIntakeSubmit(req, res) {
       links: { responses_file: responsesFilename },
     });
 
-    // ---- Generate report (Executive Search)
+    // ---- Generate report (Executive Search) -> zapisuje PDF na dysk
     const generatedAtISO = new Date().toISOString();
-    const { pdfBuffer } = await generateExecutiveSearchReport({
-      caseId,
-      respondent,
-      answers,
-      generatedAtISO
-    });
 
-    // Save PDF to /out/case_xxx/LRID_Report.pdf
-    const caseFolder = path.join(EFFECTIVE_OUT_DIR, `case_${caseId}_${generatedAtISO.replace(/[:.]/g, "-")}`);
+    // Folder raportu w OUT
+    const caseFolder = path.join(
+      EFFECTIVE_OUT_DIR,
+      `case_${caseId}_${generatedAtISO.replace(/[:.]/g, "-")}`
+    );
     ensureDir(caseFolder);
-    const pdfPath = path.join(caseFolder, "LRID_Report.pdf");
-    fs.writeFileSync(pdfPath, pdfBuffer);
 
+    const pdfPath = path.join(caseFolder, "LRID_Report.pdf");
+
+    // Generator potrzebuje draft-like object + outputPath
+    generateExecutiveSearchReport(
+      {
+        case_id: caseId,
+        respondent,
+        answers,
+        generatedAtISO,
+        data: payload,
+        meta: { source: "intake" },
+      },
+      pdfPath
+    );
+
+    // Link do PDF
     const reportUrl = `${publicBaseUrl(req)}/out/${path.basename(caseFolder)}/LRID_Report.pdf`;
 
     // ---- Email (best effort)
@@ -243,13 +254,20 @@ async function handleIntakeSubmit(req, res) {
     const to = respondent?.email || payload?.respondent?.email || null;
     if (to) {
       try {
+        // czytamy PDF do bufora tylko po to, aby dołączyć do maila
+        const pdfBuffer = fs.readFileSync(pdfPath);
+
         await sendReportEmail({
           to,
           subject: `LRID™ Executive Search Report — ${caseId}`,
-          text: `Attached is your LRID™ Executive Search Report.\n\nCase ID: ${caseId}\nGenerated: ${generatedAtISO}\n\nIf you cannot open the attachment, use this link:\n${reportUrl}\n`,
+          text:
+            `Attached is your LRID™ Executive Search Report.\n\n` +
+            `Case ID: ${caseId}\nGenerated: ${generatedAtISO}\n\n` +
+            `If you cannot open the attachment, use this link:\n${reportUrl}\n`,
           pdfFilename: "LRID_Report.pdf",
-          pdfBuffer
+          pdfBuffer,
         });
+
         emailed = true;
       } catch (e) {
         emailed = false;
@@ -269,11 +287,11 @@ async function handleIntakeSubmit(req, res) {
       emailed,
       email_error: emailError,
       review_url: `${publicBaseUrl(req)}/review`,
-      message: "Submission stored as responses + draft"
+      message: "Submission stored as responses + draft",
     });
   } catch (err) {
     console.error("❌ Intake submit error:", err);
-    return res.status(500).json({ ok: false, error: "Submit failed (server error)" });
+    return res.status(500).json({ ok: false, error: err?.message || "Submit failed (server error)" });
   }
 }
 
