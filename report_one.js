@@ -24,16 +24,14 @@ function resolveCaseId(draft) {
     draft?.case_id ||
     draft?.caseId ||
     draft?.meta?.case_id ||
-    draft?.data?.case_id || // czasem case siedzi w data
+    draft?.data?.case_id ||
     null
   );
 }
 
 function resolveOutputPath(draft, outputPath) {
-  // Jeśli server.js poda outputPath -> użyj go
   if (isNonEmptyString(outputPath)) return outputPath;
 
-  // W innym wypadku budujemy deterministyczną ścieżkę
   const storageRoot = process.env.STORAGE_ROOT || "/data";
   if (!isNonEmptyString(storageRoot)) {
     throw new TypeError("STORAGE_ROOT must be a non-empty string.");
@@ -42,21 +40,18 @@ function resolveOutputPath(draft, outputPath) {
   const caseId = resolveCaseId(draft);
   const safeCaseId = safeFileName(caseId);
 
-  // /data/reports/<caseId>/LRID-Leadership-Report.pdf
   return path.join(storageRoot, "reports", safeCaseId, "LRID-Leadership-Report.pdf");
 }
 
 // -------------------
-// Main export
+// Main export (ASYNC)
 // -------------------
-function generateExecutiveSearchReport(draft, outputPath) {
+async function generateExecutiveSearchReport(draft, outputPath) {
   const finalOutputPath = resolveOutputPath(draft, outputPath);
-
   if (!isNonEmptyString(finalOutputPath)) {
     throw new TypeError("generateExecutiveSearchReport: outputPath could not be resolved to a valid string.");
   }
 
-  // Upewnij się, że katalog istnieje
   fs.mkdirSync(path.dirname(finalOutputPath), { recursive: true });
 
   const doc = new PDFDocument({
@@ -64,7 +59,9 @@ function generateExecutiveSearchReport(draft, outputPath) {
     margins: { top: 60, bottom: 60, left: 60, right: 60 },
   });
 
-  doc.pipe(fs.createWriteStream(finalOutputPath));
+  // ważne: czekamy na finish strumienia
+  const stream = fs.createWriteStream(finalOutputPath);
+  doc.pipe(stream);
 
   // -------------------
   // Helpers
@@ -105,7 +102,6 @@ function generateExecutiveSearchReport(draft, outputPath) {
   doc.moveDown(2);
 
   const respondent = draft?.respondent || {};
-
   const caseId =
     draft?.case_id ||
     draft?.caseId ||
@@ -152,7 +148,7 @@ function generateExecutiveSearchReport(draft, outputPath) {
   );
 
   // -------------------
-  // ABOUT & DISCLAIMER (Option B page)
+  // ABOUT & DISCLAIMER
   // -------------------
   doc.addPage();
 
@@ -215,9 +211,16 @@ function generateExecutiveSearchReport(draft, outputPath) {
       "for decisions made on its basis."
   );
 
+  // Zamknij dokument
   doc.end();
 
-  // Zwróć ścieżkę, żeby server mógł ją odesłać w JSON (opcjonalnie)
+  // Czekamy aż plik fizycznie powstanie
+  await new Promise((resolve, reject) => {
+    stream.on("finish", resolve);
+    stream.on("error", reject);
+    doc.on("error", reject);
+  });
+
   return { outputPath: finalOutputPath };
 }
 
