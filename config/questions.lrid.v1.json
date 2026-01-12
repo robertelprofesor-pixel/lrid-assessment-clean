@@ -5,12 +5,333 @@
     "estimated_time_minutes": 55,
     "note": "Decision-support diagnostic. Not a psychological test.",
     "scales": {
-      "likert_1_5": {
-        "min": 1,
-        "max": 5
-      }
+      "likert_1_5": { "min": 1, "max": 5 }
     }
   },
+
+  "questions": [
+    {
+      "id": "DI-01",
+      "dimension_id": "DI",
+      "dimension_name": "Decision Integrity",
+      "type": "single_choice",
+      "required": true,
+      "text": "You receive information that is legally available but ethically uncomfortable and could provide strategic advantage. What do you do first?",
+      "time_limit_seconds": 75,
+      "options": [
+        { "label": "Use it — responsibility lies with the source", "value": 1, "score": 1 },
+        { "label": "Consult informally with a trusted colleague", "value": 2, "score": 3 },
+        { "label": "Pause and seek an alternative legitimate source", "value": 3, "score": 4 },
+        { "label": "Reject using it regardless of cost", "value": 4, "score": 5 }
+      ]
+    },
+    {
+      "id": "DI-02",
+      "dimension_id": "DI",
+      "dimension_name": "Decision Integrity",
+      "type": "scale",
+      "required": true,
+      "text": "When pressured to decide fast, how willing are you to delay a decision to improve its quality (even if it looks ‘less decisive’)?",
+      "time_limit_seconds": 60,
+      "scale": { "min": 1, "max": 5 }
+    },
+    {
+      "id": "DI-13",
+      "dimension_id": "DI",
+      "dimension_name": "Decision Integrity",
+      "type": "single_choice",
+      "required": true,
+      "text": "You can save a critical contract. Condition: accept a clause that is ‘industry standard’ but, in your view, misleading to the client (still legal). What do you do?",
+      "time_limit_seconds": 75,
+      "options": [
+        { "label": "Accept — ‘everyone does it’", "value": 1, "score": 1 },
+        { "label": "Accept, but add a small clarification in an appendix", "value": 2, "score": 3 },
+        { "label": "Renegotiate the clause, even at the cost of the contract", "value": 3, "score": 5 },
+        { "label": "Escalate to compliance/legal and pause the signature", "value": 4, "score": 4 }
+      ]
+    },
+    {
+      "id": "DI-14",
+      "dimension_id": "DI",
+      "dimension_name": "Decision Integrity",
+      "type": "single_choice",
+      "required": true,
+      "text": "Your trusted director makes a mistake that may become public. The team suggests ‘narrative management’ and shifting responsibility to the process. How do you react?",
+      "time_limit_seconds": 75,
+      "options": [
+        { "label": "Protect the person — stability matters more", "value": 1, "score": 2 },
+        { "label": "Minimize risk and ‘clean up’ communication", "value": 2, "score": 2 },
+        { "label": "Choose full transparency, even if it hurts", "value": 3, "score": 5 },
+        { "label": "Verify facts and disclose only what is necessary", "value": 4, "score": 4 }
+      ]
+    },
+
+    {
+      "id": "RP-03",
+      "dimension_id": "RP",
+      "dimension_name": "Resilience Under Pressure",
+      "type": "single_choice",
+      "required": true,
+      "text": "In the same week: a key manager resigns, a strategic project slips, and media pressure rises. What gets your attention first?",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "People stability first", "value": 1, "score": 5 },
+        { "label": "External communication first", "value": 2, "score": 4 },
+        { "label": "Project recovery first", "value": 3, "score": 4 },
+        { "label": "Internal damage control first", "value": 4, "score": 3 }
+      ]
+    },
+    {
+      "id": "RP-04",
+      "dimension_id": "RP",
+      "dimension_name": "Resilience Under Pressure",
+      "type": "scale",
+      "required": true,
+      "text": "Under overload, how does your internal state usually shift? (1 = calm mobilization; 5 = irritation / short fuse)",
+      "time_limit_seconds": 60,
+      "scale": { "min": 1, "max": 5 }
+    },
+    {
+      "id": "RP-15",
+      "dimension_id": "RP",
+      "dimension_name": "Resilience Under Pressure",
+      "type": "single_choice",
+      "required": true,
+      "text": "When you are under chronic overload, which area loses quality first?",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "Empathy and patience", "value": 1, "score": 4 },
+        { "label": "Decision quality (shortcuts)", "value": 2, "score": 5 },
+        { "label": "Control increases / micromanagement", "value": 3, "score": 4 },
+        { "label": "Nothing drops — I operate the same", "value": 4, "score": 1 }
+      ]
+    },
+    {
+      "id": "RP-16",
+      "dimension_id": "RP",
+      "dimension_name": "Resilience Under Pressure",
+      "type": "single_choice",
+      "required": true,
+      "text": "After a very hard week, what do you do in the first 24 hours?",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "Add more work — ‘this is not the time to slow down’", "value": 1, "score": 1 },
+        { "label": "Sleep and cut off inputs", "value": 2, "score": 4 },
+        { "label": "Run a quick AAR (what worked/failed), then rest", "value": 3, "score": 5 },
+        { "label": "Meet people and ‘take the temperature’", "value": 4, "score": 4 }
+      ]
+    },
+
+    {
+      "id": "MA-05",
+      "dimension_id": "MA",
+      "dimension_name": "Manipulation Awareness",
+      "type": "single_choice",
+      "required": true,
+      "text": "A powerful stakeholder frames a solution as ‘the only realistic option’, backed by authority and time pressure. Your response:",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "Accept — pragmatic reality", "value": 1, "score": 1 },
+        { "label": "Ask for credible alternatives", "value": 2, "score": 4 },
+        { "label": "Check who truly benefits and what is hidden", "value": 3, "score": 5 },
+        { "label": "Delay decision despite pressure", "value": 4, "score": 4 }
+      ]
+    },
+    {
+      "id": "MA-06",
+      "dimension_id": "MA",
+      "dimension_name": "Manipulation Awareness",
+      "type": "scale",
+      "required": true,
+      "text": "How often do you change your position primarily because the power context changed (not because new data appeared)?",
+      "time_limit_seconds": 45,
+      "scale": { "min": 1, "max": 5 }
+    },
+    {
+      "id": "MA-17",
+      "dimension_id": "MA",
+      "dimension_name": "Manipulation Awareness",
+      "type": "single_choice",
+      "required": true,
+      "text": "You receive a partner deck: beautiful slides, selective data, and a ‘can’t refuse’ proposal. Everyone already bought in mentally. Your first move:",
+      "time_limit_seconds": 75,
+      "options": [
+        { "label": "Accept and negotiate details", "value": 1, "score": 2 },
+        { "label": "Request raw data and methodology", "value": 2, "score": 5 },
+        { "label": "Request a devil’s advocate counter-case", "value": 3, "score": 5 },
+        { "label": "Delay the decision — ‘something smells off’", "value": 4, "score": 4 }
+      ]
+    },
+    {
+      "id": "MA-18",
+      "dimension_id": "MA",
+      "dimension_name": "Manipulation Awareness",
+      "type": "single_choice",
+      "required": true,
+      "text": "A stakeholder says: ‘If we don’t do this now, we’re finished.’ No data, very convincing. What do you do?",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "Comply — risk is too high", "value": 1, "score": 1 },
+        { "label": "Ask 3 questions: source, data, alternatives", "value": 2, "score": 5 },
+        { "label": "Gather the team and run a fast 2x2 scenario", "value": 3, "score": 5 },
+        { "label": "Reduce scope to a minimum and run a test step", "value": 4, "score": 4 }
+      ]
+    },
+
+    {
+      "id": "AC-07",
+      "dimension_id": "AC",
+      "dimension_name": "Attention Control",
+      "type": "single_choice",
+      "required": true,
+      "text": "During a normal day you receive many ‘urgent’ inputs. Which best describes your style?",
+      "time_limit_seconds": 45,
+      "options": [
+        { "label": "React in real time", "value": 1, "score": 1 },
+        { "label": "Delegate most of it", "value": 2, "score": 3 },
+        { "label": "Separate urgent vs important and protect priorities", "value": 3, "score": 5 },
+        { "label": "Block access and return strictly to priorities", "value": 4, "score": 4 }
+      ]
+    },
+    {
+      "id": "AC-08",
+      "dimension_id": "AC",
+      "dimension_name": "Attention Control",
+      "type": "single_choice",
+      "required": true,
+      "text": "In critical moments, what most often captures your attention first?",
+      "time_limit_seconds": 120,
+      "options": [
+        { "label": "Clarifying priorities and defining what truly matters first", "value": 1, "score": 5 },
+        { "label": "Signals related to people (stress, conflict, morale)", "value": 2, "score": 4 },
+        { "label": "Immediate operational issues that require action now", "value": 3, "score": 3 },
+        { "label": "External pressure such as stakeholders, image, or reputational risk", "value": 4, "score": 2 },
+        { "label": "Multiple signals at once — attention fragments before stabilizing", "value": 5, "score": 1 }
+      ]
+    },
+    {
+      "id": "AC-19",
+      "dimension_id": "AC",
+      "dimension_name": "Attention Control",
+      "type": "single_choice",
+      "required": true,
+      "text": "In your organization people interrupt constantly and everything is ‘urgent’. Priorities blur. What do you do as a leader?",
+      "time_limit_seconds": 75,
+      "options": [
+        { "label": "Implement focus blocks + escalation channels", "value": 1, "score": 5 },
+        { "label": "Increase control meetings", "value": 2, "score": 2 },
+        { "label": "Force more status reporting (more data)", "value": 3, "score": 3 },
+        { "label": "Trust it will self-correct", "value": 4, "score": 1 }
+      ]
+    },
+    {
+      "id": "AC-20",
+      "dimension_id": "AC",
+      "dimension_name": "Attention Control",
+      "type": "single_choice",
+      "required": true,
+      "text": "In a crisis you have 30 seconds to define the priority (Commander’s Intent). Which is closer to your style?",
+      "time_limit_seconds": 45,
+      "options": [
+        { "label": "‘We’ll do everything we must’", "value": 1, "score": 1 },
+        { "label": "‘Protect people and continuity first, then the rest’", "value": 2, "score": 5 },
+        { "label": "‘Save the KPI — that’s what we’ll be judged on’", "value": 3, "score": 2 },
+        { "label": "‘Wait for full data to avoid mistakes’", "value": 4, "score": 3 }
+      ]
+    },
+
+    {
+      "id": "PR-09",
+      "dimension_id": "PR",
+      "dimension_name": "Power & Responsibility Balance",
+      "type": "single_choice",
+      "required": true,
+      "text": "A decision is formally yours, but the team is split. What role do you take?",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "Decide alone", "value": 1, "score": 3 },
+        { "label": "Build consensus", "value": 2, "score": 5 },
+        { "label": "Delegate responsibility", "value": 3, "score": 2 },
+        { "label": "Delay the decision", "value": 4, "score": 1 }
+      ]
+    },
+    {
+      "id": "PR-10",
+      "dimension_id": "PR",
+      "dimension_name": "Power & Responsibility Balance",
+      "type": "single_choice",
+      "required": true,
+      "text": "When did you last change a decision because someone lower in hierarchy was right?",
+      "time_limit_seconds": 45,
+      "options": [
+        { "label": "Recently", "value": 1, "score": 5 },
+        { "label": "A few times a year", "value": 2, "score": 4 },
+        { "label": "Rarely", "value": 3, "score": 2 },
+        { "label": "I don’t recall", "value": 4, "score": 1 }
+      ]
+    },
+    {
+      "id": "PR-21",
+      "dimension_id": "PR",
+      "dimension_name": "Power & Responsibility Balance",
+      "type": "single_choice",
+      "required": true,
+      "text": "Someone publicly challenges your decision in a meeting. What do you do?",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "Cut it off: ‘we’ll return later’", "value": 1, "score": 2 },
+        { "label": "Invite the argument and allow discussion", "value": 2, "score": 5 },
+        { "label": "Treat as disloyalty and react hard", "value": 3, "score": 1 },
+        { "label": "Move to 1:1 and separate emotion from merit", "value": 4, "score": 4 }
+      ]
+    },
+
+    {
+      "id": "ED-12",
+      "dimension_id": "ED",
+      "dimension_name": "Ethical Drift Risk",
+      "type": "single_choice",
+      "required": true,
+      "text": "Which statement is closer to you?",
+      "time_limit_seconds": 45,
+      "options": [
+        { "label": "The goal sometimes justifies the means", "value": 1, "score": 1 },
+        { "label": "The means define the leader, not the goal", "value": 2, "score": 5 }
+      ]
+    },
+    {
+      "id": "ED-11",
+      "dimension_id": "ED",
+      "dimension_name": "Ethical Drift Risk",
+      "type": "single_choice",
+      "required": true,
+      "text": "A small deviation from standards brings short-term benefit and no one objects. Your first internal reaction is closest to:",
+      "time_limit_seconds": 120,
+      "options": [
+        { "label": "“Even without objections, this sets the wrong signal — stop.”", "value": 1, "score": 5 },
+        { "label": "“Small deviations accumulate — this is where ethical drift begins.”", "value": 2, "score": 4 },
+        { "label": "“I need to understand precisely where the boundary lies before acting.”", "value": 3, "score": 3 },
+        { "label": "“Context matters; I will allow it but monitor the situation.”", "value": 4, "score": 2 },
+        { "label": "“If it’s legal and improves the result, it’s acceptable.”", "value": 5, "score": 1 }
+      ]
+    },
+    {
+      "id": "ED-22",
+      "dimension_id": "ED",
+      "dimension_name": "Ethical Drift Risk",
+      "type": "single_choice",
+      "required": true,
+      "text": "You see the team normalizing small deviations: ‘just this once’, ‘it’s a detail’, ‘it’s for the project’. What is your natural reaction?",
+      "time_limit_seconds": 60,
+      "options": [
+        { "label": "Ignore — delivery matters", "value": 1, "score": 1 },
+        { "label": "Stop immediately and name the standard", "value": 2, "score": 5 },
+        { "label": "Set a minimum threshold and allow exceptions", "value": 3, "score": 3 },
+        { "label": "Commission an audit/compliance reset", "value": 4, "score": 4 }
+      ]
+    }
+  ],
+
   "dimensions": [
     {
       "id": "DI",
@@ -22,22 +343,10 @@
           "text": "You receive information that is legally available but ethically uncomfortable and could provide strategic advantage. What do you do first?",
           "time_limit_seconds": 75,
           "options": [
-            {
-              "label": "Use it — responsibility lies with the source",
-              "score": 1
-            },
-            {
-              "label": "Consult informally with a trusted colleague",
-              "score": 3
-            },
-            {
-              "label": "Pause and seek an alternative legitimate source",
-              "score": 4
-            },
-            {
-              "label": "Reject using it regardless of cost",
-              "score": 5
-            }
+            { "label": "Use it — responsibility lies with the source", "score": 1 },
+            { "label": "Consult informally with a trusted colleague", "score": 3 },
+            { "label": "Pause and seek an alternative legitimate source", "score": 4 },
+            { "label": "Reject using it regardless of cost", "score": 5 }
           ]
         },
         {
@@ -45,10 +354,7 @@
           "type": "scale",
           "text": "When pressured to decide fast, how willing are you to delay a decision to improve its quality (even if it looks ‘less decisive’)?",
           "time_limit_seconds": 60,
-          "scale": {
-            "min": 1,
-            "max": 5
-          }
+          "scale": { "min": 1, "max": 5 }
         },
         {
           "id": "DI-13",
@@ -56,22 +362,10 @@
           "text": "You can save a critical contract. Condition: accept a clause that is ‘industry standard’ but, in your view, misleading to the client (still legal). What do you do?",
           "time_limit_seconds": 75,
           "options": [
-            {
-              "label": "Accept — ‘everyone does it’",
-              "score": 1
-            },
-            {
-              "label": "Accept, but add a small clarification in an appendix",
-              "score": 3
-            },
-            {
-              "label": "Renegotiate the clause, even at the cost of the contract",
-              "score": 5
-            },
-            {
-              "label": "Escalate to compliance/legal and pause the signature",
-              "score": 4
-            }
+            { "label": "Accept — ‘everyone does it’", "score": 1 },
+            { "label": "Accept, but add a small clarification in an appendix", "score": 3 },
+            { "label": "Renegotiate the clause, even at the cost of the contract", "score": 5 },
+            { "label": "Escalate to compliance/legal and pause the signature", "score": 4 }
           ]
         },
         {
@@ -80,22 +374,10 @@
           "text": "Your trusted director makes a mistake that may become public. The team suggests ‘narrative management’ and shifting responsibility to the process. How do you react?",
           "time_limit_seconds": 75,
           "options": [
-            {
-              "label": "Protect the person — stability matters more",
-              "score": 2
-            },
-            {
-              "label": "Minimize risk and ‘clean up’ communication",
-              "score": 2
-            },
-            {
-              "label": "Choose full transparency, even if it hurts",
-              "score": 5
-            },
-            {
-              "label": "Verify facts and disclose only what is necessary",
-              "score": 4
-            }
+            { "label": "Protect the person — stability matters more", "score": 2 },
+            { "label": "Minimize risk and ‘clean up’ communication", "score": 2 },
+            { "label": "Choose full transparency, even if it hurts", "score": 5 },
+            { "label": "Verify facts and disclose only what is necessary", "score": 4 }
           ]
         }
       ]
@@ -110,22 +392,10 @@
           "text": "In the same week: a key manager resigns, a strategic project slips, and media pressure rises. What gets your attention first?",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "People stability first",
-              "score": 5
-            },
-            {
-              "label": "External communication first",
-              "score": 4
-            },
-            {
-              "label": "Project recovery first",
-              "score": 4
-            },
-            {
-              "label": "Internal damage control first",
-              "score": 3
-            }
+            { "label": "People stability first", "score": 5 },
+            { "label": "External communication first", "score": 4 },
+            { "label": "Project recovery first", "score": 4 },
+            { "label": "Internal damage control first", "score": 3 }
           ]
         },
         {
@@ -133,10 +403,7 @@
           "type": "scale",
           "text": "Under overload, how does your internal state usually shift? (1 = calm mobilization; 5 = irritation / short fuse)",
           "time_limit_seconds": 60,
-          "scale": {
-            "min": 1,
-            "max": 5
-          }
+          "scale": { "min": 1, "max": 5 }
         },
         {
           "id": "RP-15",
@@ -144,22 +411,10 @@
           "text": "When you are under chronic overload, which area loses quality first?",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "Empathy and patience",
-              "score": 4
-            },
-            {
-              "label": "Decision quality (shortcuts)",
-              "score": 5
-            },
-            {
-              "label": "Control increases / micromanagement",
-              "score": 4
-            },
-            {
-              "label": "Nothing drops — I operate the same",
-              "score": 1
-            }
+            { "label": "Empathy and patience", "score": 4 },
+            { "label": "Decision quality (shortcuts)", "score": 5 },
+            { "label": "Control increases / micromanagement", "score": 4 },
+            { "label": "Nothing drops — I operate the same", "score": 1 }
           ]
         },
         {
@@ -168,22 +423,10 @@
           "text": "After a very hard week, what do you do in the first 24 hours?",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "Add more work — ‘this is not the time to slow down’",
-              "score": 1
-            },
-            {
-              "label": "Sleep and cut off inputs",
-              "score": 4
-            },
-            {
-              "label": "Run a quick AAR (what worked/failed), then rest",
-              "score": 5
-            },
-            {
-              "label": "Meet people and ‘take the temperature’",
-              "score": 4
-            }
+            { "label": "Add more work — ‘this is not the time to slow down’", "score": 1 },
+            { "label": "Sleep and cut off inputs", "score": 4 },
+            { "label": "Run a quick AAR (what worked/failed), then rest", "score": 5 },
+            { "label": "Meet people and ‘take the temperature’", "score": 4 }
           ]
         }
       ]
@@ -198,22 +441,10 @@
           "text": "A powerful stakeholder frames a solution as ‘the only realistic option’, backed by authority and time pressure. Your response:",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "Accept — pragmatic reality",
-              "score": 1
-            },
-            {
-              "label": "Ask for credible alternatives",
-              "score": 4
-            },
-            {
-              "label": "Check who truly benefits and what is hidden",
-              "score": 5
-            },
-            {
-              "label": "Delay decision despite pressure",
-              "score": 4
-            }
+            { "label": "Accept — pragmatic reality", "score": 1 },
+            { "label": "Ask for credible alternatives", "score": 4 },
+            { "label": "Check who truly benefits and what is hidden", "score": 5 },
+            { "label": "Delay decision despite pressure", "score": 4 }
           ]
         },
         {
@@ -221,10 +452,7 @@
           "type": "scale",
           "text": "How often do you change your position primarily because the power context changed (not because new data appeared)?",
           "time_limit_seconds": 45,
-          "scale": {
-            "min": 1,
-            "max": 5
-          }
+          "scale": { "min": 1, "max": 5 }
         },
         {
           "id": "MA-17",
@@ -232,22 +460,10 @@
           "text": "You receive a partner deck: beautiful slides, selective data, and a ‘can’t refuse’ proposal. Everyone already bought in mentally. Your first move:",
           "time_limit_seconds": 75,
           "options": [
-            {
-              "label": "Accept and negotiate details",
-              "score": 2
-            },
-            {
-              "label": "Request raw data and methodology",
-              "score": 5
-            },
-            {
-              "label": "Request a devil’s advocate counter-case",
-              "score": 5
-            },
-            {
-              "label": "Delay the decision — ‘something smells off’",
-              "score": 4
-            }
+            { "label": "Accept and negotiate details", "score": 2 },
+            { "label": "Request raw data and methodology", "score": 5 },
+            { "label": "Request a devil’s advocate counter-case", "score": 5 },
+            { "label": "Delay the decision — ‘something smells off’", "score": 4 }
           ]
         },
         {
@@ -256,22 +472,10 @@
           "text": "A stakeholder says: ‘If we don’t do this now, we’re finished.’ No data, very convincing. What do you do?",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "Comply — risk is too high",
-              "score": 1
-            },
-            {
-              "label": "Ask 3 questions: source, data, alternatives",
-              "score": 5
-            },
-            {
-              "label": "Gather the team and run a fast 2x2 scenario",
-              "score": 5
-            },
-            {
-              "label": "Reduce scope to a minimum and run a test step",
-              "score": 4
-            }
+            { "label": "Comply — risk is too high", "score": 1 },
+            { "label": "Ask 3 questions: source, data, alternatives", "score": 5 },
+            { "label": "Gather the team and run a fast 2x2 scenario", "score": 5 },
+            { "label": "Reduce scope to a minimum and run a test step", "score": 4 }
           ]
         }
       ]
@@ -286,22 +490,10 @@
           "text": "During a normal day you receive many ‘urgent’ inputs. Which best describes your style?",
           "time_limit_seconds": 45,
           "options": [
-            {
-              "label": "React in real time",
-              "score": 1
-            },
-            {
-              "label": "Delegate most of it",
-              "score": 3
-            },
-            {
-              "label": "Separate urgent vs important and protect priorities",
-              "score": 5
-            },
-            {
-              "label": "Block access and return strictly to priorities",
-              "score": 4
-            }
+            { "label": "React in real time", "score": 1 },
+            { "label": "Delegate most of it", "score": 3 },
+            { "label": "Separate urgent vs important and protect priorities", "score": 5 },
+            { "label": "Block access and return strictly to priorities", "score": 4 }
           ]
         },
         {
@@ -310,26 +502,11 @@
           "text": "In critical moments, what most often captures your attention first?",
           "time_limit_seconds": 120,
           "options": [
-            {
-              "label": "Clarifying priorities and defining what truly matters first",
-              "score": 5
-            },
-            {
-              "label": "Signals related to people (stress, conflict, morale)",
-              "score": 4
-            },
-            {
-              "label": "Immediate operational issues that require action now",
-              "score": 3
-            },
-            {
-              "label": "External pressure such as stakeholders, image, or reputational risk",
-              "score": 2
-            },
-            {
-              "label": "Multiple signals at once — attention fragments before stabilizing",
-              "score": 1
-            }
+            { "label": "Clarifying priorities and defining what truly matters first", "score": 5 },
+            { "label": "Signals related to people (stress, conflict, morale)", "score": 4 },
+            { "label": "Immediate operational issues that require action now", "score": 3 },
+            { "label": "External pressure such as stakeholders, image, or reputational risk", "score": 2 },
+            { "label": "Multiple signals at once — attention fragments before stabilizing", "score": 1 }
           ]
         },
         {
@@ -338,22 +515,10 @@
           "text": "In your organization people interrupt constantly and everything is ‘urgent’. Priorities blur. What do you do as a leader?",
           "time_limit_seconds": 75,
           "options": [
-            {
-              "label": "Implement focus blocks + escalation channels",
-              "score": 5
-            },
-            {
-              "label": "Increase control meetings",
-              "score": 2
-            },
-            {
-              "label": "Force more status reporting (more data)",
-              "score": 3
-            },
-            {
-              "label": "Trust it will self-correct",
-              "score": 1
-            }
+            { "label": "Implement focus blocks + escalation channels", "score": 5 },
+            { "label": "Increase control meetings", "score": 2 },
+            { "label": "Force more status reporting (more data)", "score": 3 },
+            { "label": "Trust it will self-correct", "score": 1 }
           ]
         },
         {
@@ -362,22 +527,10 @@
           "text": "In a crisis you have 30 seconds to define the priority (Commander’s Intent). Which is closer to your style?",
           "time_limit_seconds": 45,
           "options": [
-            {
-              "label": "‘We’ll do everything we must’",
-              "score": 1
-            },
-            {
-              "label": "‘Protect people and continuity first, then the rest’",
-              "score": 5
-            },
-            {
-              "label": "‘Save the KPI — that’s what we’ll be judged on’",
-              "score": 2
-            },
-            {
-              "label": "‘Wait for full data to avoid mistakes’",
-              "score": 3
-            }
+            { "label": "‘We’ll do everything we must’", "score": 1 },
+            { "label": "‘Protect people and continuity first, then the rest’", "score": 5 },
+            { "label": "‘Save the KPI — that’s what we’ll be judged on’", "score": 2 },
+            { "label": "‘Wait for full data to avoid mistakes’", "score": 3 }
           ]
         }
       ]
@@ -392,22 +545,10 @@
           "text": "A decision is formally yours, but the team is split. What role do you take?",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "Decide alone",
-              "score": 3
-            },
-            {
-              "label": "Build consensus",
-              "score": 5
-            },
-            {
-              "label": "Delegate responsibility",
-              "score": 2
-            },
-            {
-              "label": "Delay the decision",
-              "score": 1
-            }
+            { "label": "Decide alone", "score": 3 },
+            { "label": "Build consensus", "score": 5 },
+            { "label": "Delegate responsibility", "score": 2 },
+            { "label": "Delay the decision", "score": 1 }
           ]
         },
         {
@@ -416,22 +557,10 @@
           "text": "When did you last change a decision because someone lower in hierarchy was right?",
           "time_limit_seconds": 45,
           "options": [
-            {
-              "label": "Recently",
-              "score": 5
-            },
-            {
-              "label": "A few times a year",
-              "score": 4
-            },
-            {
-              "label": "Rarely",
-              "score": 2
-            },
-            {
-              "label": "I don’t recall",
-              "score": 1
-            }
+            { "label": "Recently", "score": 5 },
+            { "label": "A few times a year", "score": 4 },
+            { "label": "Rarely", "score": 2 },
+            { "label": "I don’t recall", "score": 1 }
           ]
         },
         {
@@ -440,22 +569,10 @@
           "text": "Someone publicly challenges your decision in a meeting. What do you do?",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "Cut it off: ‘we’ll return later’",
-              "score": 2
-            },
-            {
-              "label": "Invite the argument and allow discussion",
-              "score": 5
-            },
-            {
-              "label": "Treat as disloyalty and react hard",
-              "score": 1
-            },
-            {
-              "label": "Move to 1:1 and separate emotion from merit",
-              "score": 4
-            }
+            { "label": "Cut it off: ‘we’ll return later’", "score": 2 },
+            { "label": "Invite the argument and allow discussion", "score": 5 },
+            { "label": "Treat as disloyalty and react hard", "score": 1 },
+            { "label": "Move to 1:1 and separate emotion from merit", "score": 4 }
           ]
         }
       ]
@@ -470,14 +587,8 @@
           "text": "Which statement is closer to you?",
           "time_limit_seconds": 45,
           "options": [
-            {
-              "label": "The goal sometimes justifies the means",
-              "score": 1
-            },
-            {
-              "label": "The means define the leader, not the goal",
-              "score": 5
-            }
+            { "label": "The goal sometimes justifies the means", "score": 1 },
+            { "label": "The means define the leader, not the goal", "score": 5 }
           ]
         },
         {
@@ -486,26 +597,11 @@
           "text": "A small deviation from standards brings short-term benefit and no one objects. Your first internal reaction is closest to:",
           "time_limit_seconds": 120,
           "options": [
-            {
-              "label": "“Even without objections, this sets the wrong signal — stop.”",
-              "score": 5
-            },
-            {
-              "label": "“Small deviations accumulate — this is where ethical drift begins.”",
-              "score": 4
-            },
-            {
-              "label": "“I need to understand precisely where the boundary lies before acting.”",
-              "score": 3
-            },
-            {
-              "label": "“Context matters; I will allow it but monitor the situation.”",
-              "score": 2
-            },
-            {
-              "label": "“If it’s legal and improves the result, it’s acceptable.”",
-              "score": 1
-            }
+            { "label": "“Even without objections, this sets the wrong signal — stop.”", "score": 5 },
+            { "label": "“Small deviations accumulate — this is where ethical drift begins.”", "score": 4 },
+            { "label": "“I need to understand precisely where the boundary lies before acting.”", "score": 3 },
+            { "label": "“Context matters; I will allow it but monitor the situation.”", "score": 2 },
+            { "label": "“If it’s legal and improves the result, it’s acceptable.”", "score": 1 }
           ]
         },
         {
@@ -514,22 +610,10 @@
           "text": "You see the team normalizing small deviations: ‘just this once’, ‘it’s a detail’, ‘it’s for the project’. What is your natural reaction?",
           "time_limit_seconds": 60,
           "options": [
-            {
-              "label": "Ignore — delivery matters",
-              "score": 1
-            },
-            {
-              "label": "Stop immediately and name the standard",
-              "score": 5
-            },
-            {
-              "label": "Set a minimum threshold and allow exceptions",
-              "score": 3
-            },
-            {
-              "label": "Commission an audit/compliance reset",
-              "score": 4
-            }
+            { "label": "Ignore — delivery matters", "score": 1 },
+            { "label": "Stop immediately and name the standard", "score": 5 },
+            { "label": "Set a minimum threshold and allow exceptions", "score": 3 },
+            { "label": "Commission an audit/compliance reset", "score": 4 }
           ]
         }
       ]
