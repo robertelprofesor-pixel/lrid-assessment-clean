@@ -1,77 +1,58 @@
-// mailer.js — SMTP mailer with debug logs (Gmail App Password supported)
-const nodemailer = require("nodemailer");
+// mailer.js — Resend (HTTP) mailer
+const { Resend } = require("resend");
 
-function envBool(v, def = false) {
-  if (v === undefined || v === null || v === "") return def;
-  const s = String(v).toLowerCase().trim();
-  return s === "1" || s === "true" || s === "yes" || s === "y";
-}
-
-function envInt(v, def) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : def;
+function required(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
 }
 
 function getMailConfig() {
-  const SMTP_HOST = process.env.SMTP_HOST || "";
-  const SMTP_PORT = envInt(process.env.SMTP_PORT, 587);
-  const SMTP_SECURE = envBool(process.env.SMTP_SECURE, SMTP_PORT === 465);
-  const SMTP_USER = process.env.SMTP_USER || "";
-  const SMTP_PASS = process.env.SMTP_PASS || "";
-  const MAIL_FROM = process.env.MAIL_FROM || (SMTP_USER ? `LRID Reports <${SMTP_USER}>` : "LRID Reports");
-
-  return { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM };
+  return {
+    RESEND_API_KEY: process.env.RESEND_API_KEY || "",
+    MAIL_FROM: process.env.MAIL_FROM || "",
+  };
 }
 
+/**
+ * Send PDF as attachment via Resend
+ * NOTE: MAIL_FROM must be a verified sender/domain in Resend.
+ */
 async function sendReportEmail({ to, subject, text, pdfFilename, pdfBuffer }) {
-  const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM } = getMailConfig();
+  const RESEND_API_KEY = required("RESEND_API_KEY");
+  const MAIL_FROM = required("MAIL_FROM");
 
-  console.log("[MAIL] ENV CHECK:", {
-    SMTP_HOST,
-    SMTP_PORT,
-    SMTP_SECURE,
-    SMTP_USER: SMTP_USER || "",
-    SMTP_PASS: SMTP_PASS ? "SET" : "MISSING",
-    MAIL_FROM
-  });
+  const resend = new Resend(RESEND_API_KEY);
 
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    throw new Error("SMTP env missing: set SMTP_HOST, SMTP_USER, SMTP_PASS (and optionally SMTP_PORT/SMTP_SECURE/MAIL_FROM)");
-  }
+  const base64 = Buffer.from(pdfBuffer).toString("base64");
 
-  const transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_SECURE,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-
-    // IMPORTANT on platforms that sometimes block/slow SMTP:
-    connectionTimeout: 30_000,
-    greetingTimeout: 30_000,
-    socketTimeout: 60_000,
-
-    logger: true,
-    debug: true
-  });
-
-  console.log("[MAIL] Sending to:", to);
-
-  const info = await transporter.sendMail({
-    from: MAIL_FROM,
+  console.log("[MAIL] Using Resend:", {
     to,
+    from: MAIL_FROM,
+    subject,
+    attachment: pdfFilename || "LRID_Report.pdf",
+  });
+
+  const { data, error } = await resend.emails.send({
+    from: MAIL_FROM,
+    to: [to],
     subject,
     text,
     attachments: [
       {
         filename: pdfFilename || "LRID_Report.pdf",
-        content: pdfBuffer,
-        contentType: "application/pdf"
-      }
-    ]
+        content: base64,
+      },
+    ],
   });
 
-  console.log("[MAIL] Sent OK:", { messageId: info.messageId, response: info.response });
-  return info;
+  if (error) {
+    console.error("[MAIL] Resend error:", error);
+    throw new Error(error.message || "Resend failed");
+  }
+
+  console.log("[MAIL] Resend sent:", data);
+  return data;
 }
 
 module.exports = { sendReportEmail, getMailConfig };
